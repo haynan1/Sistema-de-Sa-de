@@ -44,26 +44,35 @@ sistema/
 
 ## Como iniciar
 
-1. Inicialize o banco:
+1. Crie e ative uma virtualenv local:
 
 ```bash
 cd /home/Haynan/Documentos/sistema
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+2. Inicialize o banco:
+
+```bash
 python3 sistema.py init-db
 ```
 
-2. Consulte os comandos:
+3. Consulte os comandos:
 
 ```bash
 python3 sistema.py --help
 ```
 
-3. Suba a interface web:
+4. Suba a interface web:
 
 ```bash
 python3 sistema.py web
 ```
 
-4. Abra no navegador:
+5. Abra no navegador:
 
 ```text
 http://127.0.0.1:8765
@@ -185,6 +194,13 @@ python3 sistema.py exportar-txt
 python3 sistema.py exportar-md
 python3 sistema.py exportar-pdf
 ```
+
+O PDF agora sai com:
+
+- resumo executivo em cards
+- tabelas padronizadas com cabecalho institucional
+- distribuicao de risco e secoes tematicas
+- rodape com data e numeracao de pagina
 
 Arquivos gerados:
 

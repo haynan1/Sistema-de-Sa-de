@@ -2,6 +2,8 @@ __pycache__/
 *.pyc
 *.db
 .env
+.venv/
+venv/
 relatorios_pdf/
 relatorios_txt/
 exportacoes_microarea/

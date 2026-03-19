@@ -5,11 +5,14 @@ from __future__ import annotations
 from datetime import date, datetime
 import json
 from pathlib import Path
+from xml.sax.saxutils import escape
 
+from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.units import cm
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from banco.conexao import BASE_DIR, obter_conexao
 from modulos.validacoes import texto_obrigatorio
@@ -20,6 +23,14 @@ RELATORIOS_MD_DIR = BASE_DIR / "relatorios_md"
 RELATORIOS_PDF_DIR = BASE_DIR / "relatorios_pdf"
 EXPORTACOES_MICROAREA_DIR = BASE_DIR / "exportacoes_microarea"
 DATA_NASCIMENTO_DESCONHECIDA = "1900-01-01"
+
+PDF_COR_PRIMARIA = colors.HexColor("#0F4C5C")
+PDF_COR_SECUNDARIA = colors.HexColor("#1F7A8C")
+PDF_COR_DESTAQUE = colors.HexColor("#EAF4F4")
+PDF_COR_TEXTO = colors.HexColor("#1F2933")
+PDF_COR_MUTED = colors.HexColor("#5B7083")
+PDF_COR_BORDA = colors.HexColor("#D7E3EA")
+PDF_COR_ZEBRA = colors.HexColor("#F8FBFC")
 
 
 CONDICOES_MAP = {
@@ -500,6 +511,333 @@ def _conteudo_markdown(relatorio: dict) -> str:
     return "\n".join(linhas)
 
 
+def _pdf_texto(valor: object) -> str:
+    texto = str(valor or "-").strip()
+    if not texto:
+        texto = "-"
+    return escape(texto).replace("\n", "<br/>")
+
+
+def _pdf_estilos() -> dict[str, ParagraphStyle]:
+    estilos_base = getSampleStyleSheet()
+    return {
+        "titulo_capa": ParagraphStyle(
+            "TituloCapa",
+            parent=estilos_base["Title"],
+            fontName="Helvetica-Bold",
+            fontSize=20,
+            leading=24,
+            textColor=PDF_COR_PRIMARIA,
+            alignment=TA_CENTER,
+            spaceAfter=8,
+        ),
+        "subtitulo": ParagraphStyle(
+            "Subtitulo",
+            parent=estilos_base["BodyText"],
+            fontName="Helvetica",
+            fontSize=9,
+            leading=12,
+            textColor=PDF_COR_MUTED,
+            alignment=TA_CENTER,
+            spaceAfter=10,
+        ),
+        "secao": ParagraphStyle(
+            "Secao",
+            parent=estilos_base["Heading2"],
+            fontName="Helvetica-Bold",
+            fontSize=13,
+            leading=16,
+            textColor=PDF_COR_PRIMARIA,
+            spaceBefore=10,
+            spaceAfter=8,
+        ),
+        "corpo": ParagraphStyle(
+            "Corpo",
+            parent=estilos_base["BodyText"],
+            fontName="Helvetica",
+            fontSize=9,
+            leading=12,
+            textColor=PDF_COR_TEXTO,
+            spaceAfter=4,
+        ),
+        "corpo_central": ParagraphStyle(
+            "CorpoCentral",
+            parent=estilos_base["BodyText"],
+            fontName="Helvetica",
+            fontSize=9,
+            leading=12,
+            textColor=PDF_COR_TEXTO,
+            alignment=TA_CENTER,
+        ),
+        "microtitulo": ParagraphStyle(
+            "Microtitulo",
+            parent=estilos_base["Heading3"],
+            fontName="Helvetica-Bold",
+            fontSize=10,
+            leading=12,
+            textColor=PDF_COR_SECUNDARIA,
+            spaceBefore=6,
+            spaceAfter=4,
+        ),
+        "card_rotulo": ParagraphStyle(
+            "CardRotulo",
+            parent=estilos_base["BodyText"],
+            fontName="Helvetica-Bold",
+            fontSize=8,
+            leading=10,
+            textColor=PDF_COR_MUTED,
+            alignment=TA_CENTER,
+        ),
+        "card_valor": ParagraphStyle(
+            "CardValor",
+            parent=estilos_base["BodyText"],
+            fontName="Helvetica-Bold",
+            fontSize=16,
+            leading=18,
+            textColor=PDF_COR_PRIMARIA,
+            alignment=TA_CENTER,
+        ),
+    }
+
+
+def _desenhar_cabecalho_rodape(canvas, doc) -> None:
+    canvas.saveState()
+    largura, altura = A4
+    canvas.setStrokeColor(PDF_COR_BORDA)
+    canvas.setLineWidth(0.5)
+    canvas.line(doc.leftMargin, altura - 1.35 * cm, largura - doc.rightMargin, altura - 1.35 * cm)
+    canvas.setFont("Helvetica-Bold", 9)
+    canvas.setFillColor(PDF_COR_PRIMARIA)
+    canvas.drawString(doc.leftMargin, altura - 1.05 * cm, "Sistema Territorial de Saude")
+    canvas.setFont("Helvetica", 8)
+    canvas.setFillColor(PDF_COR_MUTED)
+    canvas.drawRightString(largura - doc.rightMargin, altura - 1.05 * cm, datetime.now().strftime("%d/%m/%Y %H:%M"))
+    canvas.line(doc.leftMargin, 1.2 * cm, largura - doc.rightMargin, 1.2 * cm)
+    canvas.drawString(doc.leftMargin, 0.8 * cm, "Relatorio gerado automaticamente")
+    canvas.drawRightString(largura - doc.rightMargin, 0.8 * cm, f"Pagina {canvas.getPageNumber()}")
+    canvas.restoreState()
+
+
+def _criar_tabela_pdf(
+    cabecalho: list[str],
+    linhas: list[list[object]],
+    estilos: dict[str, ParagraphStyle],
+    larguras: list[float] | None = None,
+) -> Table:
+    dados = [[Paragraph(_pdf_texto(coluna), estilos["microtitulo"]) for coluna in cabecalho]]
+    for linha in linhas:
+        dados.append([Paragraph(_pdf_texto(coluna), estilos["corpo"]) for coluna in linha])
+
+    tabela = Table(dados, colWidths=larguras, repeatRows=1, hAlign="LEFT")
+    tabela.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), PDF_COR_PRIMARIA),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 0), 9),
+                ("LEADING", (0, 0), (-1, -1), 11),
+                ("GRID", (0, 0), (-1, -1), 0.35, PDF_COR_BORDA),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]
+        )
+    )
+
+    for indice in range(1, len(dados)):
+        if indice % 2 == 0:
+            tabela.setStyle(TableStyle([("BACKGROUND", (0, indice), (-1, indice), PDF_COR_ZEBRA)]))
+
+    return tabela
+
+
+def _cards_resumo(estatistico: dict, estilos: dict[str, ParagraphStyle]) -> Table:
+    metricas = [
+        ("Casas", estatistico["domicilios"]),
+        ("Familias", estatistico["familias"]),
+        ("Pessoas", estatistico["pacientes_ativos"]),
+        ("Fora de area", estatistico["fora_area"]),
+        ("Gestantes", estatistico["gestantes"]),
+        ("Acamados", estatistico["acamados"]),
+        ("Criancas 0-12", estatistico["criancas_0_12"]),
+        ("Adolescentes", estatistico["adolescentes"]),
+        ("Adultos", estatistico["adultos"]),
+        ("Idosos", estatistico["idosos"]),
+        ("Mulheres", estatistico["total_mulheres"]),
+        ("Homens", estatistico["total_homens"]),
+    ]
+
+    cards = []
+    largura_card = 5.5 * cm
+    for rotulo, valor in metricas:
+        card = Table(
+            [[Paragraph(_pdf_texto(rotulo), estilos["card_rotulo"])], [Paragraph(_pdf_texto(valor), estilos["card_valor"])]],
+            colWidths=[largura_card],
+        )
+        card.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), PDF_COR_DESTAQUE),
+                    ("BOX", (0, 0), (-1, -1), 0.5, PDF_COR_BORDA),
+                    ("INNERGRID", (0, 0), (-1, -1), 0.25, PDF_COR_BORDA),
+                    ("TOPPADDING", (0, 0), (-1, -1), 8),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ]
+            )
+        )
+        cards.append(card)
+
+    linhas = [cards[indice:indice + 3] for indice in range(0, len(cards), 3)]
+    grade = Table(linhas, colWidths=[largura_card, largura_card, largura_card], hAlign="LEFT")
+    grade.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("BOTTOMPADDING", (0, 0), (-1, -1), 6)]))
+    return grade
+
+
+def _montar_story_relatorio_pdf(relatorio: dict, titulo: str) -> list:
+    estilos = _pdf_estilos()
+    estatistico = relatorio["estatistico"]
+    story = [
+        Paragraph(_pdf_texto(titulo), estilos["titulo_capa"]),
+        Paragraph(
+            _pdf_texto(
+                f"Competencia {relatorio.get('competencia', competencia_atual())} | "
+                f"Emitido em {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+            ),
+            estilos["subtitulo"],
+        ),
+        Spacer(1, 0.3 * cm),
+        Paragraph("Resumo Executivo", estilos["secao"]),
+        _cards_resumo(estatistico, estilos),
+        Spacer(1, 0.2 * cm),
+    ]
+
+    riscos = [
+        [item["classificacao"].title(), item["total"]]
+        for item in estatistico["riscos"]
+    ] or [["Sem estratificacao", 0]]
+    story.extend(
+        [
+            Paragraph("Distribuicao de Risco Familiar", estilos["secao"]),
+            _criar_tabela_pdf(["Classificacao", "Total"], riscos, estilos, larguras=[11 * cm, 4 * cm]),
+        ]
+    )
+
+    territorial = [
+        [
+            item["microarea"],
+            item["domicilio"],
+            item["familia"],
+            item["nome_referencia"],
+            item["total_pessoas"],
+            f"{item['classificacao']} ({item['escore']})",
+        ]
+        for item in relatorio["territorial"]
+    ]
+    story.extend(
+        [
+            Paragraph("Panorama Territorial", estilos["secao"]),
+            _criar_tabela_pdf(
+                ["Microarea", "Domicilio", "Familia", "Referencia", "Pessoas", "Risco"],
+                territorial or [["-", "-", "-", "Nenhum registro", 0, "-"]],
+                estilos,
+                larguras=[2.2 * cm, 2.6 * cm, 2.4 * cm, 5.6 * cm, 1.7 * cm, 3.0 * cm],
+            ),
+        ]
+    )
+
+    fora_area = [
+        [pessoa["nome"], _formatar_cpf(pessoa["cpf"]), pessoa["domicilio"], pessoa["familia"], pessoa["microarea"]]
+        for pessoa in relatorio["fora_area"]
+    ]
+    story.extend(
+        [
+            Paragraph("Pessoas Fora de Area", estilos["secao"]),
+            _criar_tabela_pdf(
+                ["Nome", "CPF", "Domicilio", "Familia", "Microarea"],
+                fora_area or [["Nenhum registro", "-", "-", "-", "-"]],
+                estilos,
+                larguras=[6.0 * cm, 3.0 * cm, 2.8 * cm, 2.8 * cm, 2.8 * cm],
+            ),
+        ]
+    )
+
+    idosos = [
+        [
+            pessoa["nome"],
+            _formatar_cpf(pessoa["cpf"]),
+            _idade_anos(pessoa["data_nascimento"]) or "-",
+            pessoa["domicilio"],
+            pessoa["familia"],
+            pessoa["microarea"],
+        ]
+        for pessoa in relatorio["idosos"]
+    ]
+    story.extend(
+        [
+            Paragraph("Idosos Acompanhados", estilos["secao"]),
+            _criar_tabela_pdf(
+                ["Nome", "CPF", "Idade", "Domicilio", "Familia", "Microarea"],
+                idosos or [["Nenhum registro", "-", "-", "-", "-", "-"]],
+                estilos,
+                larguras=[4.8 * cm, 2.8 * cm, 1.5 * cm, 2.4 * cm, 2.2 * cm, 2.8 * cm],
+            ),
+        ]
+    )
+
+    story.append(Paragraph("Condicoes Prioritarias", estilos["secao"]))
+    story.append(
+        _criar_tabela_pdf(
+            ["Condicao", "Total"],
+            [[grupo["titulo"], grupo["total"]] for grupo in relatorio["condicoes"]],
+            estilos,
+            larguras=[12.5 * cm, 2.5 * cm],
+        )
+    )
+    for grupo in relatorio["condicoes"]:
+        if not grupo["pessoas"]:
+            continue
+        story.append(Paragraph(f"{grupo['titulo']} ({grupo['total']})", estilos["microtitulo"]))
+        story.append(
+            _criar_tabela_pdf(
+                ["Nome", "CPF", "Domicilio", "Familia"],
+                [
+                    [pessoa["nome"], _formatar_cpf(pessoa["cpf"]), pessoa["domicilio"], pessoa["familia"]]
+                    for pessoa in grupo["pessoas"]
+                ],
+                estilos,
+                larguras=[7.0 * cm, 3.0 * cm, 3.0 * cm, 3.0 * cm],
+            )
+        )
+
+    estratificacao = [
+        [
+            item["classificacao"],
+            item["escore"],
+            item["domicilio"],
+            item["familia"],
+            item["nome_referencia"],
+            item["resumo"],
+        ]
+        for item in relatorio["estratificacao"]
+    ]
+    story.extend(
+        [
+            Paragraph("Estratificacao Detalhada", estilos["secao"]),
+            _criar_tabela_pdf(
+                ["Risco", "Escore", "Domicilio", "Familia", "Referencia", "Resumo"],
+                estratificacao or [["Sem registros", 0, "-", "-", "-", "-"]],
+                estilos,
+                larguras=[2.4 * cm, 1.4 * cm, 2.2 * cm, 2.1 * cm, 3.7 * cm, 4.2 * cm],
+            ),
+        ]
+    )
+
+    return story
+
+
 def _markdown_para_pdf(markdown_texto: str, destino: Path, titulo: str) -> Path:
     _garantir_diretorios()
     estilos = getSampleStyleSheet()
@@ -555,12 +893,21 @@ def exportar_relatorio_md(nome_arquivo: str = "relatorio_territorial.md", relato
 
 
 def exportar_relatorio_pdf(nome_arquivo: str = "relatorio_territorial.pdf", relatorio: dict | None = None) -> Path:
-    """Exporta um relatorio em PDF a partir do conteudo Markdown."""
+    """Exporta um relatorio em PDF com layout profissional."""
     _garantir_diretorios()
     destino = RELATORIOS_PDF_DIR / nome_arquivo
     dados = relatorio or relatorio_geral()
-    markdown_texto = _conteudo_markdown(dados)
-    return _markdown_para_pdf(markdown_texto, destino, "Relatório Territorial")
+    doc = SimpleDocTemplate(
+        str(destino),
+        pagesize=A4,
+        rightMargin=1.4 * cm,
+        leftMargin=1.4 * cm,
+        topMargin=2.2 * cm,
+        bottomMargin=1.8 * cm,
+    )
+    story = _montar_story_relatorio_pdf(dados, "Relatorio Territorial")
+    doc.build(story, onFirstPage=_desenhar_cabecalho_rodape, onLaterPages=_desenhar_cabecalho_rodape)
+    return destino
 
 
 def gerar_relatorio_mensal_persistente(competencia: str | None = None) -> dict:
