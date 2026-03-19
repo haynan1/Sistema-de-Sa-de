@@ -18,6 +18,7 @@ from modulos.pacientes import cadastrar_paciente, obter_paciente_por_cpf
 from modulos.receitas import cadastrar_receita
 from modulos.relatorios import (
     competencia_atual,
+    exportar_microarea,
     gerar_relatorio_mensal_persistente,
     relatorio_estatistico,
     relatorio_geral,
@@ -195,6 +196,17 @@ class TestDominio(BaseSistemaTestCase):
 
         with self.assertRaisesRegex(ValueError, "Competência deve estar"):
             gerar_relatorio_mensal_persistente("03-2026")
+
+    def test_exportacao_microarea_gera_pdfs_executivo_e_cadastro(self) -> None:
+        self.criar_base_minima()
+        exportacao = exportar_microarea("MA-TESTE")
+
+        self.assertTrue(Path(exportacao["json_path"]).exists())
+        self.assertTrue(Path(exportacao["md_path"]).exists())
+        self.assertTrue(Path(exportacao["pdf_path"]).exists())
+        self.assertTrue(Path(exportacao["pdf_resumo_path"]).exists())
+        self.assertTrue(Path(exportacao["pdf_cadastro_path"]).exists())
+        self.assertTrue(Path(exportacao["pdf_markdown_path"]).exists())
 
     def test_relatorios_ignoram_data_padrao_desconhecida_na_idade(self) -> None:
         domicilio_id = cadastrar_domicilio(

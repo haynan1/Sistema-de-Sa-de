@@ -230,7 +230,9 @@ Arquivos gerados:
 
 - `JSON`
 - `MD`
-- `PDF`
+- `PDF executivo`
+- `PDF cadastro`
+- `PDF markdown`
 
 Diretorio:
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import date, datetime
 import json
 from pathlib import Path
@@ -12,7 +13,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.units import cm
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from banco.conexao import BASE_DIR, obter_conexao
 from modulos.validacoes import texto_obrigatorio
@@ -518,6 +519,18 @@ def _pdf_texto(valor: object) -> str:
     return escape(texto).replace("\n", "<br/>")
 
 
+def _formatar_data_br(data_iso: str) -> str:
+    texto = str(data_iso or "").strip()
+    if not texto:
+        return "-"
+    for mascara in ("%Y-%m-%d", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(texto, mascara).strftime("%d/%m/%Y")
+        except ValueError:
+            continue
+    return texto
+
+
 def _pdf_estilos() -> dict[str, ParagraphStyle]:
     estilos_base = getSampleStyleSheet()
     return {
@@ -579,6 +592,16 @@ def _pdf_estilos() -> dict[str, ParagraphStyle]:
             spaceBefore=6,
             spaceAfter=4,
         ),
+        "subsecao": ParagraphStyle(
+            "Subsecao",
+            parent=estilos_base["Heading3"],
+            fontName="Helvetica-Bold",
+            fontSize=11,
+            leading=14,
+            textColor=PDF_COR_SECUNDARIA,
+            spaceBefore=8,
+            spaceAfter=5,
+        ),
         "card_rotulo": ParagraphStyle(
             "CardRotulo",
             parent=estilos_base["BodyText"],
@@ -598,6 +621,25 @@ def _pdf_estilos() -> dict[str, ParagraphStyle]:
             alignment=TA_CENTER,
         ),
     }
+
+
+def _pdf_card_metrica(rotulo: str, valor: object, estilos: dict[str, ParagraphStyle], largura: float = 5.5 * cm) -> Table:
+    card = Table(
+        [[Paragraph(_pdf_texto(rotulo), estilos["card_rotulo"])], [Paragraph(_pdf_texto(valor), estilos["card_valor"])]],
+        colWidths=[largura],
+    )
+    card.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), PDF_COR_DESTAQUE),
+                ("BOX", (0, 0), (-1, -1), 0.5, PDF_COR_BORDA),
+                ("INNERGRID", (0, 0), (-1, -1), 0.25, PDF_COR_BORDA),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ]
+        )
+    )
+    return card
 
 
 def _desenhar_cabecalho_rodape(canvas, doc) -> None:
@@ -673,22 +715,7 @@ def _cards_resumo(estatistico: dict, estilos: dict[str, ParagraphStyle]) -> Tabl
     cards = []
     largura_card = 5.5 * cm
     for rotulo, valor in metricas:
-        card = Table(
-            [[Paragraph(_pdf_texto(rotulo), estilos["card_rotulo"])], [Paragraph(_pdf_texto(valor), estilos["card_valor"])]],
-            colWidths=[largura_card],
-        )
-        card.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, -1), PDF_COR_DESTAQUE),
-                    ("BOX", (0, 0), (-1, -1), 0.5, PDF_COR_BORDA),
-                    ("INNERGRID", (0, 0), (-1, -1), 0.25, PDF_COR_BORDA),
-                    ("TOPPADDING", (0, 0), (-1, -1), 8),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-                ]
-            )
-        )
-        cards.append(card)
+        cards.append(_pdf_card_metrica(rotulo, valor, estilos, largura=largura_card))
 
     linhas = [cards[indice:indice + 3] for indice in range(0, len(cards), 3)]
     grade = Table(linhas, colWidths=[largura_card, largura_card, largura_card], hAlign="LEFT")
@@ -838,6 +865,273 @@ def _montar_story_relatorio_pdf(relatorio: dict, titulo: str) -> list:
     return story
 
 
+def _indices_por_chave(itens: list[dict], chave: str) -> dict[object, list[dict]]:
+    agrupado: dict[object, list[dict]] = defaultdict(list)
+    for item in itens:
+        agrupado[item.get(chave)].append(item)
+    return dict(agrupado)
+
+
+def _condicoes_ativas(condicao: dict) -> str:
+    ativos = [titulo for chave, titulo in CONDICOES_MAP.items() if condicao.get(chave)]
+    observacoes = str(condicao.get("observacoes") or "").strip()
+    if observacoes:
+        ativos.append(f"Obs: {observacoes}")
+    return ", ".join(ativos) if ativos else "Sem condicoes sinalizadas"
+
+
+def _receitas_resumo(receitas: list[dict]) -> str:
+    if not receitas:
+        return "Nenhuma receita registrada"
+    itens = []
+    for receita in receitas[:4]:
+        validade = _formatar_data_br(receita.get("data_validade", ""))
+        medicamento = receita.get("medicamento") or "Medicamento"
+        dosagem = receita.get("dosagem") or "Dose nao informada"
+        itens.append(f"{medicamento} ({dosagem}) validade {validade}")
+    if len(receitas) > 4:
+        itens.append(f"+{len(receitas) - 4} receita(s)")
+    return "; ".join(itens)
+
+
+def _resumo_domicilio(domicilio: dict) -> str:
+    partes = [
+        domicilio.get("endereco") or "Endereco nao informado",
+        str(domicilio.get("numero") or "S/N"),
+    ]
+    bairro = domicilio.get("bairro")
+    if bairro:
+        partes.append(f"Bairro {bairro}")
+    return " | ".join(partes)
+
+
+def _story_microarea_executivo(dados: dict) -> list:
+    estilos = _pdf_estilos()
+    domicilios = dados["domicilios"]
+    familias = dados["familias"]
+    pacientes = dados["pacientes"]
+    estratificacao = dados["estratificacao"]
+    story = [
+        Paragraph(_pdf_texto(f"Exportacao da Microarea {dados['microarea']}"), estilos["titulo_capa"]),
+        Paragraph(
+            _pdf_texto(f"Relatorio executivo | Gerado em {_formatar_data_br(dados['gerado_em'])}"),
+            estilos["subtitulo"],
+        ),
+        Spacer(1, 0.3 * cm),
+        Paragraph("Painel da Microarea", estilos["secao"]),
+    ]
+
+    cards = [
+        _pdf_card_metrica("Domicilios", len(domicilios), estilos),
+        _pdf_card_metrica("Familias", len(familias), estilos),
+        _pdf_card_metrica("Pacientes", len(pacientes), estilos),
+        _pdf_card_metrica("Receitas", len(dados["receitas"]), estilos),
+        _pdf_card_metrica("Condicoes", len(dados["condicoes"]), estilos),
+        _pdf_card_metrica("Risco alto/maximo", sum(1 for item in estratificacao if "alto" in item["classificacao"].lower() or "max" in item["classificacao"].lower()), estilos),
+    ]
+    story.append(Table([cards[:3], cards[3:]], colWidths=[5.5 * cm, 5.5 * cm, 5.5 * cm], hAlign="LEFT"))
+
+    story.extend(
+        [
+            Paragraph("Domicilios Cadastrados", estilos["secao"]),
+            _criar_tabela_pdf(
+                ["Domicilio", "Endereco", "Familias", "Pacientes"],
+                [
+                    [
+                        domicilio["identificacao"],
+                        _resumo_domicilio(domicilio),
+                        sum(1 for familia in familias if familia["domicilio_id"] == domicilio["id"]),
+                        sum(1 for paciente in pacientes if paciente["domicilio_identificacao"] == domicilio["identificacao"]),
+                    ]
+                    for domicilio in domicilios
+                ] or [["-", "Nenhum domicilio", 0, 0]],
+                estilos,
+                larguras=[2.8 * cm, 8.0 * cm, 2.2 * cm, 2.2 * cm],
+            ),
+            Paragraph("Estratificacao Familiar", estilos["secao"]),
+            _criar_tabela_pdf(
+                ["Familia", "Domicilio", "Referencia", "Risco", "Escore", "Resumo"],
+                [
+                    [
+                        item["familia"],
+                        item["domicilio"],
+                        item["nome_referencia"],
+                        item["classificacao"],
+                        item["escore"],
+                        item["resumo"],
+                    ]
+                    for item in estratificacao
+                ] or [["-", "-", "-", "Sem registros", 0, "-"]],
+                estilos,
+                larguras=[2.1 * cm, 2.3 * cm, 3.8 * cm, 2.5 * cm, 1.3 * cm, 4.2 * cm],
+            ),
+        ]
+    )
+    return story
+
+
+def _story_microarea_cadastro(dados: dict) -> list:
+    estilos = _pdf_estilos()
+    story = [
+        Paragraph(_pdf_texto(f"Cadastro Completo da Microarea {dados['microarea']}"), estilos["titulo_capa"]),
+        Paragraph(
+            _pdf_texto(
+                f"Caderno operacional com domicilios, familias, pacientes, condicoes e receitas | "
+                f"Gerado em {_formatar_data_br(dados['gerado_em'])}"
+            ),
+            estilos["subtitulo"],
+        ),
+        Spacer(1, 0.4 * cm),
+    ]
+
+    domicilios = dados["domicilios"]
+    familias_por_domicilio = _indices_por_chave(dados["familias"], "domicilio_id")
+    pacientes_por_familia = _indices_por_chave(dados["pacientes"], "familia_id")
+    condicoes_por_paciente = _indices_por_chave(dados["condicoes"], "paciente_id")
+    receitas_por_paciente = _indices_por_chave(dados["receitas"], "paciente_id")
+    risco_por_familia = {item["familia"]: item for item in dados["estratificacao"]}
+
+    story.extend(
+        [
+            Paragraph("Resumo do Caderno", estilos["secao"]),
+            _criar_tabela_pdf(
+                ["Indicador", "Total"],
+                [
+                    ["Domicilios", len(dados["domicilios"])],
+                    ["Familias", len(dados["familias"])],
+                    ["Pacientes", len(dados["pacientes"])],
+                    ["Registros de condicoes", len(dados["condicoes"])],
+                    ["Receitas", len(dados["receitas"])],
+                ],
+                estilos,
+                larguras=[12 * cm, 3 * cm],
+            ),
+        ]
+    )
+
+    for indice, domicilio in enumerate(domicilios, start=1):
+        if indice > 1:
+            story.append(PageBreak())
+
+        familias = familias_por_domicilio.get(domicilio["id"], [])
+        total_pessoas = sum(len(pacientes_por_familia.get(familia["id"], [])) for familia in familias)
+        story.extend(
+            [
+                Paragraph(f"Domicilio {domicilio['identificacao']}", estilos["secao"]),
+                Paragraph(_pdf_texto(_resumo_domicilio(domicilio)), estilos["corpo"]),
+                _criar_tabela_pdf(
+                    ["Microarea", "Comodos", "Agua", "Energia", "Area de risco", "Vulnerabilidade"],
+                    [[
+                        domicilio.get("microarea") or "-",
+                        domicilio.get("comodos") or 0,
+                        "Sim" if domicilio.get("agua_tratada") else "Nao",
+                        "Sim" if domicilio.get("energia_eletrica") else "Nao",
+                        "Sim" if domicilio.get("area_risco") else "Nao",
+                        "Sim" if domicilio.get("vulnerabilidade_social") else "Nao",
+                    ]],
+                    estilos,
+                    larguras=[2.5 * cm, 1.8 * cm, 2.0 * cm, 2.0 * cm, 3.0 * cm, 3.7 * cm],
+                ),
+                Paragraph(
+                    _pdf_texto(
+                        f"Familias vinculadas: {len(familias)} | Pessoas cadastradas: {total_pessoas} | "
+                        f"Observacoes: {domicilio.get('observacoes') or 'Sem observacoes'}"
+                    ),
+                    estilos["corpo"],
+                ),
+            ]
+        )
+
+        if not familias:
+            story.append(Paragraph("Nenhuma familia vinculada a este domicilio.", estilos["corpo"]))
+            continue
+
+        for familia in familias:
+            pacientes = pacientes_por_familia.get(familia["id"], [])
+            risco = risco_por_familia.get(familia["codigo"], {})
+            story.extend(
+                [
+                    Paragraph(f"Familia {familia['codigo']}", estilos["subsecao"]),
+                    _criar_tabela_pdf(
+                        ["Referencia", "Renda", "Programa social", "Risco", "Escore"],
+                        [[
+                            familia.get("nome_referencia") or "-",
+                            familia.get("renda_mensal") or 0,
+                            "Sim" if familia.get("beneficiaria_programa_social") else "Nao",
+                            risco.get("classificacao") or "Sem estratificacao",
+                            risco.get("escore") or 0,
+                        ]],
+                        estilos,
+                        larguras=[5.0 * cm, 2.0 * cm, 2.8 * cm, 3.1 * cm, 1.5 * cm],
+                    ),
+                    Paragraph(_pdf_texto(f"Resumo do risco: {risco.get('resumo') or 'Sem historico'}"), estilos["corpo"]),
+                ]
+            )
+
+            if not pacientes:
+                story.append(Paragraph("Nenhum paciente ativo nesta familia.", estilos["corpo"]))
+                continue
+
+            for paciente in pacientes:
+                condicao = (condicoes_por_paciente.get(paciente["id"]) or [{}])[0]
+                receitas = receitas_por_paciente.get(paciente["id"], [])
+                story.extend(
+                    [
+                        Paragraph(f"Paciente {paciente['nome']}", estilos["microtitulo"]),
+                        _criar_tabela_pdf(
+                            ["CPF", "Nascimento", "Sexo", "Telefone", "CNS", "Nome da mae"],
+                            [[
+                                _formatar_cpf(paciente.get("cpf", "")),
+                                _formatar_data_br(paciente.get("data_nascimento", "")),
+                                paciente.get("sexo") or "-",
+                                paciente.get("telefone") or "-",
+                                paciente.get("cns") or "-",
+                                paciente.get("nome_mae") or "-",
+                            ]],
+                            estilos,
+                            larguras=[2.7 * cm, 2.2 * cm, 1.2 * cm, 2.8 * cm, 3.0 * cm, 4.6 * cm],
+                        ),
+                        _criar_tabela_pdf(
+                            ["Nome social", "Ocupacao", "Peso", "Altura", "Gestante", "Acamado"],
+                            [[
+                                paciente.get("nome_social") or "-",
+                                paciente.get("ocupacao") or "-",
+                                paciente.get("peso_kg") or "-",
+                                paciente.get("altura_cm") or "-",
+                                "Sim" if paciente.get("gestante") else "Nao",
+                                "Sim" if paciente.get("acamado") else "Nao",
+                            ]],
+                            estilos,
+                            larguras=[3.5 * cm, 3.8 * cm, 1.7 * cm, 1.7 * cm, 2.2 * cm, 2.2 * cm],
+                        ),
+                        Paragraph(_pdf_texto(f"Condicoes: {_condicoes_ativas(condicao)}"), estilos["corpo"]),
+                        Paragraph(_pdf_texto(f"Receitas: {_receitas_resumo(receitas)}"), estilos["corpo"]),
+                        Paragraph(
+                            _pdf_texto(
+                                f"Observacoes do paciente: {paciente.get('observacoes') or 'Sem observacoes registradas'}"
+                            ),
+                            estilos["corpo"],
+                        ),
+                    ]
+                )
+
+    return story
+
+
+def _gerar_pdf(destino: Path, story: list, cabecalho_fn=_desenhar_cabecalho_rodape) -> Path:
+    _garantir_diretorios()
+    doc = SimpleDocTemplate(
+        str(destino),
+        pagesize=A4,
+        rightMargin=1.4 * cm,
+        leftMargin=1.4 * cm,
+        topMargin=2.2 * cm,
+        bottomMargin=1.8 * cm,
+    )
+    doc.build(story, onFirstPage=cabecalho_fn, onLaterPages=cabecalho_fn)
+    return destino
+
+
 def _markdown_para_pdf(markdown_texto: str, destino: Path, titulo: str) -> Path:
     _garantir_diretorios()
     estilos = getSampleStyleSheet()
@@ -894,20 +1188,10 @@ def exportar_relatorio_md(nome_arquivo: str = "relatorio_territorial.md", relato
 
 def exportar_relatorio_pdf(nome_arquivo: str = "relatorio_territorial.pdf", relatorio: dict | None = None) -> Path:
     """Exporta um relatorio em PDF com layout profissional."""
-    _garantir_diretorios()
     destino = RELATORIOS_PDF_DIR / nome_arquivo
     dados = relatorio or relatorio_geral()
-    doc = SimpleDocTemplate(
-        str(destino),
-        pagesize=A4,
-        rightMargin=1.4 * cm,
-        leftMargin=1.4 * cm,
-        topMargin=2.2 * cm,
-        bottomMargin=1.8 * cm,
-    )
     story = _montar_story_relatorio_pdf(dados, "Relatorio Territorial")
-    doc.build(story, onFirstPage=_desenhar_cabecalho_rodape, onLaterPages=_desenhar_cabecalho_rodape)
-    return destino
+    return _gerar_pdf(destino, story)
 
 
 def gerar_relatorio_mensal_persistente(competencia: str | None = None) -> dict:
@@ -999,7 +1283,7 @@ def obter_relatorio_mensal(competencia: str) -> dict | None:
 
 
 def exportar_microarea(microarea: str) -> dict:
-    """Exporta todos os dados de uma microarea em JSON, MD e PDF."""
+    """Exporta todos os dados de uma microarea em JSON, MD e dois PDFs."""
     _garantir_diretorios()
     dados = relatorio_microarea(microarea)
     slug = microarea.strip().replace("/", "-").replace(" ", "_")
@@ -1009,6 +1293,8 @@ def exportar_microarea(microarea: str) -> dict:
     json_path = base_dir / f"microarea_{slug}.json"
     md_path = base_dir / f"microarea_{slug}.md"
     pdf_path = base_dir / f"microarea_{slug}.pdf"
+    pdf_executivo_path = base_dir / f"microarea_{slug}_executivo.pdf"
+    pdf_cadastro_path = base_dir / f"microarea_{slug}_cadastro.pdf"
 
     json_path.write_text(json.dumps(dados, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -1047,12 +1333,17 @@ def exportar_microarea(microarea: str) -> dict:
 
     markdown_texto = "\n".join(md_lines)
     md_path.write_text(markdown_texto, encoding="utf-8")
+    _gerar_pdf(pdf_executivo_path, _story_microarea_executivo(dados))
+    _gerar_pdf(pdf_cadastro_path, _story_microarea_cadastro(dados))
     _markdown_para_pdf(markdown_texto, pdf_path, f"Exportação da Microárea {dados['microarea']}")
 
     return {
         "microarea": dados["microarea"],
         "json_path": str(json_path),
         "md_path": str(md_path),
-        "pdf_path": str(pdf_path),
+        "pdf_path": str(pdf_cadastro_path),
+        "pdf_resumo_path": str(pdf_executivo_path),
+        "pdf_cadastro_path": str(pdf_cadastro_path),
+        "pdf_markdown_path": str(pdf_path),
         "dados": dados,
     }

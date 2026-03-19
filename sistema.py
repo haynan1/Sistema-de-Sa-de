@@ -248,7 +248,9 @@ def cmd_exportar_microarea(args: argparse.Namespace) -> None:
     print(f"Exportacao da microarea {dados['microarea']} concluida.")
     print(f"JSON: {dados['json_path']}")
     print(f"MD: {dados['md_path']}")
-    print(f"PDF: {dados['pdf_path']}")
+    print(f"PDF executivo: {dados['pdf_resumo_path']}")
+    print(f"PDF cadastro: {dados['pdf_cadastro_path']}")
+    print(f"PDF markdown: {dados['pdf_markdown_path']}")
 
 
 def cmd_web(args: argparse.Namespace) -> None:

@@ -836,7 +836,7 @@ function setupActions() {
       const microarea = document.getElementById("microareaExportInput").value.trim();
       const { data } = await request(`/api/microareas/exportar/${encodeURIComponent(microarea)}`);
       document.getElementById("microareaExportResult").textContent =
-        `JSON: ${data.json_path} | MD: ${data.md_path} | PDF: ${data.pdf_path}`;
+        `JSON: ${data.json_path} | MD: ${data.md_path} | PDF executivo: ${data.pdf_resumo_path} | PDF cadastro: ${data.pdf_cadastro_path}`;
       showToast(`Microárea ${data.microarea} exportada.`);
     } catch (error) {
       showToast(error.message, true);
