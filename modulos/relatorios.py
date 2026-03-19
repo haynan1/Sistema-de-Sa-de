@@ -312,7 +312,17 @@ def relatorio_estratificacao() -> list[dict]:
                 ORDER BY datetime(x.calculado_em) DESC, x.id DESC
                 LIMIT 1
             )
-            ORDER BY classificacao DESC, escore DESC, d.microarea, f.codigo
+            ORDER BY
+                CASE COALESCE(rf.classificacao, 'sem estratificacao')
+                    WHEN 'R3 - maximo' THEN 4
+                    WHEN 'R2 - medio' THEN 3
+                    WHEN 'R1 - menor' THEN 2
+                    WHEN 'Sem risco' THEN 1
+                    ELSE 0
+                END DESC,
+                escore DESC,
+                d.microarea,
+                f.codigo
             """
         ).fetchall()
     return [dict(linha) for linha in linhas]

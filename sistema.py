@@ -105,11 +105,15 @@ def cmd_listar_familias(_: argparse.Namespace) -> None:
 
 
 def cmd_cadastrar_paciente(args: argparse.Namespace) -> None:
-    familia = obter_familia_por_codigo(args.familia)
-    if not familia:
-        raise SystemExit("Familia nao encontrada para o codigo informado.")
+    familia = None
+    if not args.fora_area:
+        if not args.familia:
+            raise SystemExit("Familia e obrigatoria para pacientes dentro da area.")
+        familia = obter_familia_por_codigo(args.familia)
+        if not familia:
+            raise SystemExit("Familia nao encontrada para o codigo informado.")
     paciente_id = cadastrar_paciente(
-        familia_id=int(familia["id"]),
+        familia_id=int(familia["id"]) if familia else None,
         cpf=args.cpf,
         nome=args.nome,
         data_nascimento=args.data_nascimento,
@@ -300,7 +304,7 @@ def montar_parser() -> argparse.ArgumentParser:
     listar_fam.set_defaults(func=cmd_listar_familias)
 
     pac = subparsers.add_parser("cadastrar-paciente", help="Cadastra um paciente.")
-    pac.add_argument("--familia", required=True, help="Codigo da familia.")
+    pac.add_argument("--familia", default="", help="Codigo da familia.")
     pac.add_argument("--cpf", required=True)
     pac.add_argument("--nome", required=True)
     pac.add_argument("--data-nascimento", required=True, help="Formato ISO: YYYY-MM-DD")

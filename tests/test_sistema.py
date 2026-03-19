@@ -7,19 +7,22 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from unittest import mock
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
+import sistema
 from banco import conexao as banco_conexao
 from modulos.condicoes import atualizar_condicoes
 from modulos.domicilios import cadastrar_domicilio, excluir_domicilio
 from modulos.familias import cadastrar_familia, excluir_familia, obter_familia_por_codigo
 from modulos.pacientes import cadastrar_paciente, obter_paciente_por_cpf
-from modulos.receitas import cadastrar_receita
+from modulos.receitas import cadastrar_receita, listar_receitas_vencendo
 from modulos.relatorios import (
     competencia_atual,
     exportar_microarea,
     gerar_relatorio_mensal_persistente,
+    relatorio_estratificacao,
     relatorio_estatistico,
     relatorio_geral,
     relatorio_idosos,
@@ -250,6 +253,93 @@ class TestDominio(BaseSistemaTestCase):
         self.assertIsNone(paciente["familia_id"])
         self.assertIsNone(paciente["familia_codigo"])
         self.assertIsNone(paciente["domicilio_identificacao"])
+
+    def test_listar_familias_ignora_pacientes_obito_na_contagem(self) -> None:
+        self.criar_base_minima()
+
+        with banco_conexao.obter_conexao() as conexao:
+            conexao.execute("UPDATE pacientes SET obito = 1 WHERE cpf = ?", ("98765432100",))
+
+        familia = obter_familia_por_codigo("F-TESTE-01")
+
+        self.assertIsNotNone(familia)
+        self.assertEqual(familia["total_pacientes"], 1)
+
+    def test_receitas_vencendo_nao_inclui_receitas_ja_vencidas(self) -> None:
+        self.criar_base_minima()
+        jose = obter_paciente_por_cpf("12345678909")
+        self.assertIsNotNone(jose)
+
+        cadastrar_receita(
+            paciente_id=int(jose["id"]),
+            medicamento="Dipirona",
+            data_prescricao="2025-01-01",
+            validade_dias=30,
+        )
+
+        receitas = listar_receitas_vencendo(45)
+
+        self.assertTrue(any(item["medicamento"] == "Losartana" for item in receitas))
+        self.assertFalse(any(item["medicamento"] == "Dipirona" for item in receitas))
+
+    def test_relatorio_estratificacao_ordena_risco_mais_alto_primeiro(self) -> None:
+        self.criar_base_minima()
+        domicilio_id = cadastrar_domicilio(
+            identificacao="D-RISCO",
+            microarea="MA-TESTE",
+            endereco="Rua Risco",
+            area_risco=True,
+            agua_tratada=False,
+            comodos=1,
+        )
+        familia_id = cadastrar_familia(
+            codigo="F-RISCO",
+            domicilio_id=domicilio_id,
+            nome_referencia="Familia Prioritaria",
+        )
+        cadastrar_paciente(
+            familia_id=familia_id,
+            cpf="74185296314",
+            nome="Paciente Critico",
+            data_nascimento="1940-01-01",
+            sexo="M",
+            acamado=True,
+            deficiencia=True,
+        )
+        salvar_risco_familiar(familia_id)
+
+        estratos = relatorio_estratificacao()
+
+        self.assertGreaterEqual(len(estratos), 2)
+        self.assertEqual(estratos[0]["familia"], "F-RISCO")
+        self.assertEqual(estratos[0]["classificacao"], "R3 - maximo")
+
+
+class TestCli(BaseSistemaTestCase):
+    """Valida comportamentos criticos da CLI."""
+
+    def test_cli_permite_cadastrar_paciente_fora_area_sem_familia(self) -> None:
+        with mock.patch(
+            "sys.argv",
+            [
+                "sistema.py",
+                "cadastrar-paciente",
+                "--cpf",
+                "65432198700",
+                "--nome",
+                "Paciente CLI Fora Area",
+                "--data-nascimento",
+                "1992-06-10",
+                "--sexo",
+                "F",
+                "--fora-area",
+            ],
+        ):
+            sistema.main()
+
+        paciente = obter_paciente_por_cpf("65432198700")
+        self.assertIsNotNone(paciente)
+        self.assertIsNone(paciente["familia_id"])
 
 
 class TestApi(BaseSistemaTestCase):

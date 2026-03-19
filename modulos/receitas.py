@@ -121,6 +121,8 @@ def listar_receitas_vencendo(dias_limite: int = 30) -> list[dict]:
             FROM receitas r
             JOIN pacientes p ON p.id = r.paciente_id
             WHERE date(r.data_prescricao, '+' || r.validade_dias || ' day')
+                  >= date('now')
+              AND date(r.data_prescricao, '+' || r.validade_dias || ' day')
                   <= date('now', '+' || ? || ' day')
             ORDER BY data_validade
             """,

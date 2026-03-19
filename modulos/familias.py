@@ -120,7 +120,7 @@ def obter_familia_por_codigo(codigo: str) -> dict | None:
                 COUNT(p.id) AS total_pacientes
             FROM familias f
             JOIN domicilios d ON d.id = f.domicilio_id
-            LEFT JOIN pacientes p ON p.familia_id = f.id
+            LEFT JOIN pacientes p ON p.familia_id = f.id AND p.obito = 0
             WHERE f.codigo = ?
             GROUP BY f.id
             """,
@@ -141,7 +141,7 @@ def listar_familias() -> list[dict]:
                 COUNT(p.id) AS total_pacientes
             FROM familias f
             JOIN domicilios d ON d.id = f.domicilio_id
-            LEFT JOIN pacientes p ON p.familia_id = f.id
+            LEFT JOIN pacientes p ON p.familia_id = f.id AND p.obito = 0
             GROUP BY f.id
             ORDER BY d.microarea, f.codigo
             """
