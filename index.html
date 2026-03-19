@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema Territorial de Saude</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-top">
+        <div class="brand-row">
+          <div class="brand">
+            <span class="brand-mark">ST</span>
+            <div class="brand-copy">
+              <h1>Sistema Territorial</h1>
+              <p>Prontidao territorial, risco e operacao local</p>
+            </div>
+          </div>
+          <button id="sidebarToggle" class="icon-toggle" type="button" aria-label="Recolher menu">
+            <span class="toggle-open">◂</span>
+            <span class="toggle-closed">▸</span>
+          </button>
+        </div>
+
+        <div class="theme-switch">
+          <span>Tema</span>
+          <button id="themeToggle" class="theme-toggle" type="button">Alternar modo</button>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <div class="nav-group">
+              <span class="nav-group-title">Visão Geral</span>
+          <button class="nav-link active" data-section="dashboard">Painel</button>
+        </div>
+
+        <div class="nav-group">
+              <span class="nav-group-title">Operação</span>
+          <button class="nav-link" data-section="cadastros">Cadastros</button>
+          <button class="nav-link" data-section="assistencial">Assistencial</button>
+        </div>
+
+        <div class="nav-group">
+              <span class="nav-group-title">Administração</span>
+              <button class="nav-link" data-section="relatorios">Relatórios</button>
+              <button class="nav-link" data-section="gestao">Gestão</button>
+        </div>
+      </nav>
+
+      <div class="sidebar-note">
+        <strong>Operacao semelhante a PEC local</strong>
+        <p>Cadastro, busca, edicao, exclusao, estratificacao e exportacao em um fluxo unico.</p>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="main-topbar">
+        <button id="sidebarToggleMobile" class="ghost mobile-menu-button" type="button">Menu</button>
+      </div>
+      <header class="hero">
+          <div class="hero-copy">
+            <span class="eyebrow">Gestão Territorial de Saúde</span>
+          <h2>Territorio vivo, visual e acionavel.</h2>
+          <p>Uma base local elegante para organizar domicilios, familias, pacientes e vulnerabilidades com clareza operacional.</p>
+        </div>
+        <div class="hero-actions">
+          <button id="refreshAll" class="primary" type="button">Atualizar sistema</button>
+          <button id="runEstratificacao" class="secondary" type="button">Estratificar</button>
+          <button id="exportTxt" class="ghost" type="button">Exportar TXT</button>
+          <button id="exportMd" class="ghost" type="button">Exportar MD</button>
+          <button id="exportPdf" class="ghost" type="button">Exportar PDF</button>
+        </div>
+      </header>
+
+      <section id="dashboard" class="section active">
+        <div class="cards" id="dashboardCards"></div>
+        <div class="panel-grid">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <span class="panel-tag">Risco Familiar</span>
+                <h3>Estratos ativos</h3>
+              </div>
+            </div>
+            <div id="riskSummary" class="stack"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <span class="panel-tag">Receitas</span>
+                <h3>Vencimento proximo</h3>
+              </div>
+              <button id="loadReceitas" class="ghost" type="button">Atualizar</button>
+            </div>
+            <div id="receitasVencendo" class="stack"></div>
+          </section>
+        </div>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <span class="panel-tag">Inteligencia Territorial</span>
+              <h3>Panorama de familias e microareas</h3>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Microarea</th>
+                  <th>Domicilio</th>
+                  <th>Familia</th>
+                  <th>Referencia</th>
+                  <th>Pessoas</th>
+                  <th>Risco</th>
+                </tr>
+              </thead>
+              <tbody id="territorioTable"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section id="cadastros" class="section">
+        <div class="forms-grid">
+          <form id="formDomicilio" class="panel form-panel">
+            <div class="panel-head">
+              <div>
+                <span class="panel-tag">Cadastro</span>
+                <h3>Domicílio</h3>
+              </div>
+              <span id="domicilioMode" class="mode-pill">Novo</span>
+            </div>
+            <input type="hidden" name="original_identificacao">
+            <div class="form-grid">
+              <label>Identificação<input name="identificacao"></label>
+              <label>Microárea<input name="microarea"></label>
+              <label class="wide">Endereço<input name="endereco"></label>
+              <label>Número<input name="numero"></label>
+              <label>Bairro<input name="bairro"></label>
+              <label>CEP<input name="cep" inputmode="numeric" maxlength="9" placeholder="00000-000"></label>
+              <label class="wide">Complemento<input name="complemento"></label>
+              <label class="wide">Ponto de referência<input name="ponto_referencia"></label>
+              <label>Saneamento
+                <select name="saneamento">
+                  <option value="nao_informado">Não informado</option>
+                  <option value="adequado">Adequado</option>
+                  <option value="precario">Precário</option>
+                </select>
+              </label>
+              <label>Cômodos<input name="comodos" type="number" min="0" step="1"></label>
+              <label class="checkbox"><input type="checkbox" name="energia_eletrica" checked>Energia elétrica</label>
+              <label class="checkbox"><input type="checkbox" name="agua_tratada">Água tratada</label>
+              <label class="checkbox"><input type="checkbox" name="area_risco">Área de risco</label>
+              <label class="checkbox"><input type="checkbox" name="vulnerabilidade_social">Vulnerabilidade social</label>
+              <label class="wide">Observações<textarea name="observacoes" rows="3"></textarea></label>
+            </div>
+            <div class="button-row">
+              <button class="primary" type="submit">Salvar domicílio</button>
+              <button class="ghost hidden" id="cancelDomicilioEdit" type="button">Cancelar</button>
+            </div>
+          </form>
+
+          <form id="formFamilia" class="panel form-panel">
+            <div class="panel-head">
+              <div>
+                <span class="panel-tag">Cadastro</span>
+                <h3>Família</h3>
+              </div>
+              <span id="familiaMode" class="mode-pill">Novo</span>
+            </div>
+            <input type="hidden" name="original_codigo">
+            <div class="form-grid">
+              <label>Código<input name="codigo"></label>
+              <label>Domicílio
+                <select name="domicilio_identificacao" id="familiaDomicilio"></select>
+              </label>
+              <label class="wide">Nome de referência<input name="nome_referencia"></label>
+              <label>Renda mensal
+                <select name="renda_mensal">
+                  <option value="">Selecione</option>
+                  <option value="1">1 salário mínimo</option>
+                  <option value="1.5">1,5 salários mínimos</option>
+                  <option value="2">2 salários mínimos</option>
+                  <option value="3">3 salários mínimos</option>
+                  <option value="4">4 ou mais salários mínimos</option>
+                </select>
+              </label>
+              <label class="checkbox"><input type="checkbox" name="beneficiaria_programa_social">Programa social</label>
+              <label class="wide">Observações<textarea name="observacoes" rows="3"></textarea></label>
+            </div>
+            <div class="button-row">
+              <button class="primary" type="submit">Salvar família</button>
+              <button class="ghost hidden" id="cancelFamiliaEdit" type="button">Cancelar</button>
+            </div>
+          </form>
+
+          <form id="formPaciente" class="panel form-panel">
+            <div class="panel-head">
+              <div>
+                <span class="panel-tag">Cadastro</span>
+                <h3>Paciente</h3>
+              </div>
+              <span id="pacienteMode" class="mode-pill">Novo</span>
+            </div>
+            <input type="hidden" name="original_cpf">
+            <div class="form-grid">
+              <label>Família
+                <select name="familia_codigo" id="pacienteFamilia"></select>
+                <small id="pacienteFamiliaHint">Obrigatória para pessoas dentro da área.</small>
+              </label>
+              <label>CPF<input name="cpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00"></label>
+              <label class="wide">Nome<input name="nome"></label>
+              <label>Data de nascimento<input name="data_nascimento" type="date"></label>
+              <label>Sexo
+                <select name="sexo">
+                  <option value="">Selecione</option>
+                  <option value="F">F</option>
+                  <option value="M">M</option>
+                  <option value="O">O</option>
+                </select>
+              </label>
+              <label>Telefone<input name="telefone" inputmode="tel" maxlength="15" placeholder="(00) 00000-0000"></label>
+              <label>CNS<input name="cns" inputmode="numeric" maxlength="18" placeholder="000 0000 0000 0000"></label>
+              <label>Nome social<input name="nome_social"></label>
+              <label class="wide">Nome da mãe<input name="nome_mae"></label>
+              <label>Raça / cor
+                <select name="raca_cor">
+                  <option value="">Selecione</option>
+                  <option value="Branca">Branca</option>
+                  <option value="Preta">Preta</option>
+                  <option value="Parda">Parda</option>
+                  <option value="Amarela">Amarela</option>
+                  <option value="Indígena">Indígena</option>
+                </select>
+              </label>
+              <label>Ocupação<input name="ocupacao"></label>
+              <label class="wide">E-mail<input name="email" type="email"></label>
+              <label>Peso (kg)<input name="peso_kg" type="text" inputmode="decimal" placeholder="70,00"></label>
+              <label>Altura (cm)<input name="altura_cm" type="text" inputmode="decimal" placeholder="170,0"></label>
+              <label class="checkbox"><input type="checkbox" name="gestante">Gestante</label>
+              <label class="checkbox"><input type="checkbox" name="acamado">Acamado</label>
+              <label class="checkbox"><input type="checkbox" name="deficiencia">Deficiência</label>
+              <label class="checkbox"><input type="checkbox" name="fora_area">Fora da área</label>
+              <label class="checkbox"><input type="checkbox" name="domiciliado">Domiciliado</label>
+              <label class="checkbox"><input type="checkbox" name="situacao_rua">Situação de rua</label>
+              <label class="wide">Observações<textarea name="observacoes" rows="3"></textarea></label>
+            </div>
+            <div class="button-row">
+              <button class="primary" type="submit">Salvar paciente</button>
+              <button class="ghost hidden" id="cancelPacienteEdit" type="button">Cancelar</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section id="assistencial" class="section">
+        <div class="forms-grid">
+          <form id="formCondicoes" class="panel form-panel">
+            <div class="panel-head">
+              <div>
+                <span class="panel-tag">Condicoes</span>
+                <h3>Sentinelas clinicas</h3>
+              </div>
+            </div>
+            <div class="form-grid">
+              <label>CPF do paciente<input name="cpf" required></label>
+              <label class="checkbox"><input type="checkbox" name="hipertensao">Hipertensao</label>
+              <label class="checkbox"><input type="checkbox" name="diabetes">Diabetes</label>
+              <label class="checkbox"><input type="checkbox" name="saude_mental">Saude mental</label>
+              <label class="checkbox"><input type="checkbox" name="doenca_respiratoria">Doenca respiratoria</label>
+              <label class="checkbox"><input type="checkbox" name="tuberculose">Tuberculose</label>
+              <label class="checkbox"><input type="checkbox" name="hanseniase">Hanseniase</label>
+              <label class="checkbox"><input type="checkbox" name="cancer">Cancer</label>
+              <label class="checkbox"><input type="checkbox" name="avc">AVC / Derrame</label>
+              <label class="checkbox"><input type="checkbox" name="infarto">Infarto</label>
+              <label class="checkbox"><input type="checkbox" name="doenca_cardiaca">Doenca cardiaca</label>
+              <label class="checkbox"><input type="checkbox" name="problema_rins">Problema nos rins</label>
+              <label class="checkbox"><input type="checkbox" name="dependencia_quimica">Dependencia quimica</label>
+              <label class="checkbox"><input type="checkbox" name="fumante">Fumante</label>
+              <label class="checkbox"><input type="checkbox" name="uso_alcool">Uso de alcool</label>
+              <label class="checkbox"><input type="checkbox" name="outras_drogas">Uso de outras drogas</label>
+              <label class="checkbox"><input type="checkbox" name="gestante_alto_risco">Gestante alto risco</label>
+              <label class="checkbox"><input type="checkbox" name="crianca_menor_2">Crianca menor de 2</label>
+              <label class="checkbox"><input type="checkbox" name="idoso_sozinho">Idoso sozinho</label>
+              <label class="checkbox"><input type="checkbox" name="deficiencia_grave">Deficiencia grave</label>
+              <label class="checkbox"><input type="checkbox" name="desemprego">Desemprego</label>
+              <label class="checkbox"><input type="checkbox" name="analfabetismo">Analfabetismo</label>
+              <label class="checkbox"><input type="checkbox" name="desnutricao_grave">Desnutricao grave</label>
+              <label class="checkbox"><input type="checkbox" name="vulnerabilidade_social">Vulnerabilidade social</label>
+              <label class="wide">Observacoes<textarea name="observacoes" rows="3"></textarea></label>
+            </div>
+            <div class="button-row">
+              <button class="primary" type="submit">Salvar condicoes</button>
+            </div>
+          </form>
+
+          <form id="formReceita" class="panel form-panel">
+            <div class="panel-head">
+              <div>
+                <span class="panel-tag">Receita</span>
+                <h3>Prescricao e uso</h3>
+              </div>
+              <span id="receitaMode" class="mode-pill">Nova</span>
+            </div>
+            <input type="hidden" name="receita_id">
+            <div class="form-grid">
+              <label>CPF do paciente<input name="cpf" required></label>
+              <label class="wide">Medicamento<input name="medicamento" required></label>
+              <label>Dosagem<input name="dosagem"></label>
+              <label>Data da prescricao<input name="data_prescricao" type="date" required></label>
+              <label>Validade em dias<input name="validade_dias" type="number" min="1" value="180"></label>
+              <label class="checkbox"><input type="checkbox" name="uso_continuo" checked>Uso continuo</label>
+              <label class="wide">Observacoes<textarea name="observacoes" rows="3"></textarea></label>
+            </div>
+            <div class="button-row">
+              <button class="primary" type="submit">Salvar receita</button>
+              <button class="ghost hidden" id="cancelReceitaEdit" type="button">Cancelar</button>
+            </div>
+          </form>
+
+          <form id="formRisco" class="panel form-panel">
+            <div class="panel-head">
+              <div>
+                <span class="panel-tag">Estratificacao</span>
+                <h3>Recalcular familia</h3>
+              </div>
+            </div>
+            <div class="form-grid">
+              <label>Familia
+                <select name="familia_codigo" id="riscoFamilia" required></select>
+              </label>
+            </div>
+            <div class="button-row">
+              <button class="primary" type="submit">Recalcular risco</button>
+            </div>
+            <div id="riscoDetalhe" class="result-box"></div>
+          </form>
+        </div>
+      </section>
+
+      <section id="relatorios" class="section">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <span class="panel-tag">Relatorios</span>
+              <h3>Resumo gerencial</h3>
+            </div>
+            <div class="button-row">
+              <input id="monthlyCompetencia" class="search-input" placeholder="AAAA-MM">
+              <button id="generateMonthlyReport" class="secondary" type="button">Gerar mensal</button>
+              <button id="refreshReports" class="ghost" type="button">Atualizar relatorios</button>
+            </div>
+          </div>
+          <div id="reportsSummary" class="cards"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <span class="panel-tag">Persistencia</span>
+              <h3>Relatorios mensais salvos</h3>
+            </div>
+          </div>
+          <div id="monthlyReportsList" class="stack"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <span class="panel-tag">Microarea</span>
+              <h3>Exportacao completa da microarea</h3>
+            </div>
+            <div class="button-row">
+              <input id="microareaExportInput" class="search-input" placeholder="Informe a microarea">
+              <button id="exportMicroarea" class="secondary" type="button">Exportar microarea</button>
+            </div>
+          </div>
+          <div id="microareaExportResult" class="result-box"></div>
+        </div>
+
+        <div class="search-grid">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <span class="panel-tag">Casas</span>
+                <h3>Casas cadastradas</h3>
+              </div>
+            </div>
+            <div id="housesReport" class="stack"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <span class="panel-tag">Fora de area</span>
+                <h3>Pessoas fora da area</h3>
+              </div>
+            </div>
+            <div id="outsideAreaReport" class="stack"></div>
+          </section>
+        </div>
+
+        <div class="search-grid">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <span class="panel-tag">Idosos</span>
+                <h3>Pessoas idosas</h3>
+              </div>
+            </div>
+            <div id="elderlyReport" class="stack"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <span class="panel-tag">Condicoes</span>
+                <h3>Condicoes e identificacao</h3>
+              </div>
+            </div>
+            <div id="conditionsReport" class="stack"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <span class="panel-tag">Estratificacao</span>
+                <h3>Familias por risco</h3>
+              </div>
+            </div>
+            <div id="stratificationReport" class="stack"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="gestao" class="section">
+        <div class="search-grid">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <span class="panel-tag">Busca</span>
+                <h3>Domicilios</h3>
+              </div>
+              <input id="searchDomicilios" class="search-input" placeholder="Buscar por identificacao, microarea ou endereco">
+            </div>
+            <div id="domiciliosList" class="stack"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <span class="panel-tag">Busca</span>
+                <h3>Familias</h3>
+              </div>
+              <input id="searchFamilias" class="search-input" placeholder="Buscar por codigo ou referencia">
+            </div>
+            <div id="familiasList" class="stack"></div>
+          </section>
+        </div>
+
+        <div class="search-grid">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <span class="panel-tag">Busca</span>
+                <h3>Pacientes</h3>
+              </div>
+              <div class="search-row">
+                <input id="pacienteBusca" class="search-input" placeholder="Buscar paciente por nome ou CPF">
+                <button id="buscarPaciente" class="secondary" type="button">Buscar</button>
+              </div>
+            </div>
+            <div id="pacientesLista" class="stack"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <span class="panel-tag">Gestao</span>
+                <h3>Receitas cadastradas</h3>
+              </div>
+            </div>
+            <div id="receitasList" class="stack"></div>
+          </section>
+        </div>
+      </section>
+
+      <div id="toast" class="toast"></div>
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
