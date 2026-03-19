@@ -612,6 +612,15 @@ def _pdf_estilos() -> dict[str, ParagraphStyle]:
             spaceBefore=8,
             spaceAfter=5,
         ),
+        "cabecalho_tabela": ParagraphStyle(
+            "CabecalhoTabela",
+            parent=estilos_base["BodyText"],
+            fontName="Helvetica-Bold",
+            fontSize=8.5,
+            leading=10,
+            textColor=colors.white,
+            alignment=TA_CENTER,
+        ),
         "card_rotulo": ParagraphStyle(
             "CardRotulo",
             parent=estilos_base["BodyText"],
@@ -628,6 +637,15 @@ def _pdf_estilos() -> dict[str, ParagraphStyle]:
             fontSize=16,
             leading=18,
             textColor=PDF_COR_PRIMARIA,
+            alignment=TA_CENTER,
+        ),
+        "vazio_tabela": ParagraphStyle(
+            "VazioTabela",
+            parent=estilos_base["BodyText"],
+            fontName="Helvetica-Oblique",
+            fontSize=9,
+            leading=12,
+            textColor=PDF_COR_MUTED,
             alignment=TA_CENTER,
         ),
     }
@@ -675,32 +693,63 @@ def _criar_tabela_pdf(
     linhas: list[list[object]],
     estilos: dict[str, ParagraphStyle],
     larguras: list[float] | None = None,
+    colunas_centralizadas: set[int] | None = None,
+    mensagem_vazia: str | None = None,
 ) -> Table:
-    dados = [[Paragraph(_pdf_texto(coluna), estilos["microtitulo"]) for coluna in cabecalho]]
-    for linha in linhas:
-        dados.append([Paragraph(_pdf_texto(coluna), estilos["corpo"]) for coluna in linha])
+    colunas_centralizadas = colunas_centralizadas or set()
+    dados = [[Paragraph(_pdf_texto(coluna), estilos["cabecalho_tabela"]) for coluna in cabecalho]]
+    linhas_normais = list(linhas)
+    linha_vazia = not linhas_normais
+
+    if linha_vazia:
+        mensagem = mensagem_vazia or "Nenhum registro disponivel nesta secao."
+        dados.append(
+            [Paragraph(_pdf_texto(mensagem), estilos["vazio_tabela"])] +
+            [Paragraph("", estilos["corpo"]) for _ in cabecalho[1:]]
+        )
+    else:
+        for linha in linhas_normais:
+            dados.append(
+                [
+                    Paragraph(
+                        _pdf_texto(coluna),
+                        estilos["corpo_central"] if indice in colunas_centralizadas else estilos["corpo"],
+                    )
+                    for indice, coluna in enumerate(linha)
+                ]
+            )
 
     tabela = Table(dados, colWidths=larguras, repeatRows=1, hAlign="LEFT")
-    tabela.setStyle(
-        TableStyle(
+    comandos = [
+        ("BACKGROUND", (0, 0), (-1, 0), PDF_COR_PRIMARIA),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 9),
+        ("LEADING", (0, 0), (-1, -1), 11),
+        ("BOX", (0, 0), (-1, -1), 0.6, PDF_COR_BORDA),
+        ("INNERGRID", (0, 0), (-1, -1), 0.35, PDF_COR_BORDA),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, 0), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 7),
+        ("TOPPADDING", (0, 1), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 1), (-1, -1), 6),
+    ]
+
+    if linha_vazia:
+        comandos.extend(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), PDF_COR_PRIMARIA),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, 0), 9),
-                ("LEADING", (0, 0), (-1, -1), 11),
-                ("GRID", (0, 0), (-1, -1), 0.35, PDF_COR_BORDA),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                ("TOPPADDING", (0, 0), (-1, -1), 5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ("SPAN", (0, 1), (-1, 1)),
+                ("ALIGN", (0, 1), (-1, 1), "CENTER"),
+                ("BACKGROUND", (0, 1), (-1, 1), colors.white),
             ]
         )
-    )
+
+    tabela.setStyle(TableStyle(comandos))
 
     for indice in range(1, len(dados)):
-        if indice % 2 == 0:
+        if not linha_vazia and indice % 2 == 0:
             tabela.setStyle(TableStyle([("BACKGROUND", (0, indice), (-1, indice), PDF_COR_ZEBRA)]))
 
     return tabela
@@ -758,7 +807,13 @@ def _montar_story_relatorio_pdf(relatorio: dict, titulo: str) -> list:
     story.extend(
         [
             Paragraph("Distribuicao de Risco Familiar", estilos["secao"]),
-            _criar_tabela_pdf(["Classificacao", "Total"], riscos, estilos, larguras=[11 * cm, 4 * cm]),
+            _criar_tabela_pdf(
+                ["Classificacao", "Total"],
+                riscos,
+                estilos,
+                larguras=[11.8 * cm, 3.2 * cm],
+                colunas_centralizadas={1},
+            ),
         ]
     )
 
@@ -778,9 +833,11 @@ def _montar_story_relatorio_pdf(relatorio: dict, titulo: str) -> list:
             Paragraph("Panorama Territorial", estilos["secao"]),
             _criar_tabela_pdf(
                 ["Microarea", "Domicilio", "Familia", "Referencia", "Pessoas", "Risco"],
-                territorial or [["-", "-", "-", "Nenhum registro", 0, "-"]],
+                territorial,
                 estilos,
-                larguras=[2.2 * cm, 2.6 * cm, 2.4 * cm, 5.6 * cm, 1.7 * cm, 3.0 * cm],
+                larguras=[2.0 * cm, 2.3 * cm, 2.2 * cm, 5.8 * cm, 1.6 * cm, 3.3 * cm],
+                colunas_centralizadas={0, 1, 2, 4},
+                mensagem_vazia="Nenhum registro territorial encontrado.",
             ),
         ]
     )
@@ -794,9 +851,11 @@ def _montar_story_relatorio_pdf(relatorio: dict, titulo: str) -> list:
             Paragraph("Pessoas Fora de Area", estilos["secao"]),
             _criar_tabela_pdf(
                 ["Nome", "CPF", "Domicilio", "Familia", "Microarea"],
-                fora_area or [["Nenhum registro", "-", "-", "-", "-"]],
+                fora_area,
                 estilos,
-                larguras=[6.0 * cm, 3.0 * cm, 2.8 * cm, 2.8 * cm, 2.8 * cm],
+                larguras=[6.3 * cm, 3.0 * cm, 2.4 * cm, 2.4 * cm, 2.9 * cm],
+                colunas_centralizadas={1, 2, 3, 4},
+                mensagem_vazia="Nenhuma pessoa fora de area cadastrada.",
             ),
         ]
     )
@@ -817,9 +876,11 @@ def _montar_story_relatorio_pdf(relatorio: dict, titulo: str) -> list:
             Paragraph("Idosos Acompanhados", estilos["secao"]),
             _criar_tabela_pdf(
                 ["Nome", "CPF", "Idade", "Domicilio", "Familia", "Microarea"],
-                idosos or [["Nenhum registro", "-", "-", "-", "-", "-"]],
+                idosos,
                 estilos,
-                larguras=[4.8 * cm, 2.8 * cm, 1.5 * cm, 2.4 * cm, 2.2 * cm, 2.8 * cm],
+                larguras=[5.0 * cm, 2.9 * cm, 1.4 * cm, 2.2 * cm, 2.1 * cm, 2.4 * cm],
+                colunas_centralizadas={1, 2, 3, 4, 5},
+                mensagem_vazia="Nenhum idoso acompanhado nesta competencia.",
             ),
         ]
     )
@@ -831,6 +892,7 @@ def _montar_story_relatorio_pdf(relatorio: dict, titulo: str) -> list:
             [[grupo["titulo"], grupo["total"]] for grupo in relatorio["condicoes"]],
             estilos,
             larguras=[12.5 * cm, 2.5 * cm],
+            colunas_centralizadas={1},
         )
     )
     for grupo in relatorio["condicoes"]:
@@ -846,6 +908,7 @@ def _montar_story_relatorio_pdf(relatorio: dict, titulo: str) -> list:
                 ],
                 estilos,
                 larguras=[7.0 * cm, 3.0 * cm, 3.0 * cm, 3.0 * cm],
+                colunas_centralizadas={1, 2, 3},
             )
         )
 
@@ -868,6 +931,7 @@ def _montar_story_relatorio_pdf(relatorio: dict, titulo: str) -> list:
                 estratificacao or [["Sem registros", 0, "-", "-", "-", "-"]],
                 estilos,
                 larguras=[2.4 * cm, 1.4 * cm, 2.2 * cm, 2.1 * cm, 3.7 * cm, 4.2 * cm],
+                colunas_centralizadas={1, 2, 3},
             ),
         ]
     )
