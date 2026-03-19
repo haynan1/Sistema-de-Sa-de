@@ -125,7 +125,7 @@ class TestDominio(BaseSistemaTestCase):
         self.assertEqual(estatistico["idosos"], 1)
         self.assertEqual(estatistico["total_mulheres"], 1)
         self.assertEqual(estatistico["total_homens"], 1)
-        self.assertTrue(any(item["titulo"] == "Hipertensao" and item["total"] == 1 for item in geral["condicoes"]))
+        self.assertTrue(any(item["titulo"] == "Hipertensão" and item["total"] == 1 for item in geral["condicoes"]))
 
     def test_validacoes_de_cadastro(self) -> None:
         domicilio_id = cadastrar_domicilio(
@@ -312,7 +312,7 @@ class TestDominio(BaseSistemaTestCase):
 
         self.assertGreaterEqual(len(estratos), 2)
         self.assertEqual(estratos[0]["familia"], "F-RISCO")
-        self.assertEqual(estratos[0]["classificacao"], "R3 - maximo")
+        self.assertEqual(estratos[0]["classificacao"], "R3 - máximo")
 
 
 class TestCli(BaseSistemaTestCase):

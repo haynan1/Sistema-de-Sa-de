@@ -44,9 +44,9 @@ def _idade_meses(data_nascimento: str) -> int | None:
 def classificar_risco(escore: int) -> str:
     """Converte escore em estrato de risco."""
     if escore >= 9:
-        return "R3 - maximo"
+        return "R3 - máximo"
     if escore >= 7:
-        return "R2 - medio"
+        return "R2 - médio"
     if escore >= 5:
         return "R1 - menor"
     return "Sem risco"
@@ -96,13 +96,13 @@ def calcular_risco_familiar(familia_id: int) -> dict:
 
     if familia["saneamento"] != "adequado" or not familia["agua_tratada"]:
         escore += 3
-        fatores.append("baixas condicoes de saneamento")
+        fatores.append("baixas condições de saneamento")
     if familia["area_risco"]:
         escore += 2
-        fatores.append("domicilio em area de risco")
+        fatores.append("domicílio em área de risco")
     if familia["domicilio_vulnerabilidade"]:
         escore += 2
-        fatores.append("vulnerabilidade social do domicilio")
+        fatores.append("vulnerabilidade social do domicílio")
 
     total_pessoas = len(pacientes)
     comodos = int(familia["comodos"] or 0)
@@ -124,7 +124,7 @@ def calcular_risco_familiar(familia_id: int) -> dict:
             fatores.append(f"acamado: {paciente['nome']}")
         if paciente["deficiencia"]:
             escore += 3
-            fatores.append(f"deficiencia: {paciente['nome']}")
+            fatores.append(f"deficiência: {paciente['nome']}")
         if paciente["gestante"]:
             escore += 1
             fatores.append(f"gestante: {paciente['nome']}")
@@ -156,7 +156,7 @@ def calcular_risco_familiar(familia_id: int) -> dict:
 
 
 def salvar_risco_familiar(familia_id: int) -> dict:
-    """Calcula e persiste historico do risco familiar."""
+    """Calcula e persiste histórico do risco familiar."""
     risco = calcular_risco_familiar(familia_id)
     with obter_conexao() as conexao:
         conexao.execute(
@@ -175,7 +175,7 @@ def salvar_risco_familiar(familia_id: int) -> dict:
 
 
 def obter_ultimo_risco_familiar(familia_id: int) -> dict | None:
-    """Retorna a ultima classificacao registrada para a familia."""
+    """Retorna a última classificação registrada para a família."""
     with obter_conexao() as conexao:
         linha = conexao.execute(
             """

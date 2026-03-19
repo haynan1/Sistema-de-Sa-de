@@ -35,28 +35,28 @@ PDF_COR_ZEBRA = colors.HexColor("#F8FBFC")
 
 
 CONDICOES_MAP = {
-    "hipertensao": "Hipertensao",
+    "hipertensao": "Hipertensão",
     "diabetes": "Diabetes",
-    "saude_mental": "Saude mental",
-    "doenca_respiratoria": "Doenca respiratoria",
+    "saude_mental": "Saúde mental",
+    "doenca_respiratoria": "Doença respiratória",
     "tuberculose": "Tuberculose",
-    "hanseniase": "Hanseniase",
-    "cancer": "Cancer",
+    "hanseniase": "Hanseníase",
+    "cancer": "Câncer",
     "avc": "AVC / Derrame",
     "infarto": "Infarto",
-    "doenca_cardiaca": "Doenca cardiaca",
+    "doenca_cardiaca": "Doença cardíaca",
     "problema_rins": "Problema renal",
-    "dependencia_quimica": "Dependencia quimica",
+    "dependencia_quimica": "Dependência química",
     "fumante": "Fumante",
-    "uso_alcool": "Uso de alcool",
+    "uso_alcool": "Uso de álcool",
     "outras_drogas": "Uso de outras drogas",
     "gestante_alto_risco": "Gestante alto risco",
-    "crianca_menor_2": "Crianca menor de 2 anos",
+    "crianca_menor_2": "Criança menor de 2 anos",
     "idoso_sozinho": "Idoso sozinho",
-    "deficiencia_grave": "Deficiencia grave",
+    "deficiencia_grave": "Deficiência grave",
     "desemprego": "Desemprego",
     "analfabetismo": "Analfabetismo",
-    "desnutricao_grave": "Desnutricao grave",
+    "desnutricao_grave": "Desnutrição grave",
     "vulnerabilidade_social": "Vulnerabilidade social",
 }
 
@@ -302,7 +302,7 @@ def relatorio_estratificacao() -> list[dict]:
                 f.nome_referencia,
                 COALESCE(rf.classificacao, 'sem estratificacao') AS classificacao,
                 COALESCE(rf.escore, 0) AS escore,
-                COALESCE(rf.resumo, 'Sem historico') AS resumo
+                COALESCE(rf.resumo, 'Sem histórico') AS resumo
             FROM familias f
             JOIN domicilios d ON d.id = f.domicilio_id
             LEFT JOIN risco_familiar rf ON rf.id = (
@@ -314,8 +314,8 @@ def relatorio_estratificacao() -> list[dict]:
             )
             ORDER BY
                 CASE COALESCE(rf.classificacao, 'sem estratificacao')
-                    WHEN 'R3 - maximo' THEN 4
-                    WHEN 'R2 - medio' THEN 3
+                    WHEN 'R3 - máximo' THEN 4
+                    WHEN 'R2 - médio' THEN 3
                     WHEN 'R1 - menor' THEN 2
                     WHEN 'Sem risco' THEN 1
                     ELSE 0
@@ -409,7 +409,7 @@ def relatorio_microarea(microarea: str) -> dict:
                 f.nome_referencia,
                 COALESCE(rf.classificacao, 'sem estratificacao') AS classificacao,
                 COALESCE(rf.escore, 0) AS escore,
-                COALESCE(rf.resumo, 'Sem historico') AS resumo
+                COALESCE(rf.resumo, 'Sem histórico') AS resumo
             FROM familias f
             JOIN domicilios d ON d.id = f.domicilio_id
             LEFT JOIN risco_familiar rf ON rf.id = (
@@ -523,10 +523,47 @@ def _conteudo_markdown(relatorio: dict) -> str:
 
 
 def _pdf_texto(valor: object) -> str:
-    texto = str(valor or "-").strip()
+    texto = "-" if valor is None else str(valor).strip()
     if not texto:
         texto = "-"
+    texto = _normalizar_texto_relatorio(texto)
     return escape(texto).replace("\n", "<br/>")
+
+
+def _normalizar_texto_relatorio(texto: str) -> str:
+    substituicoes = {
+        "Sem historico": "Sem histórico",
+        "Sem estratificacao": "Sem estratificação",
+        "R3 - maximo": "R3 - máximo",
+        "R2 - medio": "R2 - médio",
+        "baixas condicoes de saneamento": "baixas condições de saneamento",
+        "domicilio em area de risco": "domicílio em área de risco",
+        "vulnerabilidade social do domicilio": "vulnerabilidade social do domicílio",
+        "deficiencia:": "deficiência:",
+        "Nao": "Não",
+        "Microarea": "Microárea",
+        "Domicilio": "Domicílio",
+        "Familia": "Família",
+        "Referencia": "Referência",
+        "Condicoes": "Condições",
+        "Relatorio": "Relatório",
+        "Pagina": "Página",
+        "Endereco": "Endereço",
+        "Comodos": "Cômodos",
+    }
+    for original, corrigido in substituicoes.items():
+        texto = texto.replace(original, corrigido)
+    return texto
+
+
+def _normalizar_exportacao(valor: object) -> object:
+    if isinstance(valor, dict):
+        return {chave: _normalizar_exportacao(item) for chave, item in valor.items()}
+    if isinstance(valor, list):
+        return [_normalizar_exportacao(item) for item in valor]
+    if isinstance(valor, str):
+        return _normalizar_texto_relatorio(valor)
+    return valor
 
 
 def _formatar_data_br(data_iso: str) -> str:
@@ -678,13 +715,13 @@ def _desenhar_cabecalho_rodape(canvas, doc) -> None:
     canvas.line(doc.leftMargin, altura - 1.35 * cm, largura - doc.rightMargin, altura - 1.35 * cm)
     canvas.setFont("Helvetica-Bold", 9)
     canvas.setFillColor(PDF_COR_PRIMARIA)
-    canvas.drawString(doc.leftMargin, altura - 1.05 * cm, "Sistema Territorial de Saude")
+    canvas.drawString(doc.leftMargin, altura - 1.05 * cm, "Sistema Territorial de Saúde")
     canvas.setFont("Helvetica", 8)
     canvas.setFillColor(PDF_COR_MUTED)
     canvas.drawRightString(largura - doc.rightMargin, altura - 1.05 * cm, datetime.now().strftime("%d/%m/%Y %H:%M"))
     canvas.line(doc.leftMargin, 1.2 * cm, largura - doc.rightMargin, 1.2 * cm)
-    canvas.drawString(doc.leftMargin, 0.8 * cm, "Relatorio gerado automaticamente")
-    canvas.drawRightString(largura - doc.rightMargin, 0.8 * cm, f"Pagina {canvas.getPageNumber()}")
+    canvas.drawString(doc.leftMargin, 0.8 * cm, "Relatório gerado automaticamente")
+    canvas.drawRightString(largura - doc.rightMargin, 0.8 * cm, f"Página {canvas.getPageNumber()}")
     canvas.restoreState()
 
 
@@ -702,7 +739,7 @@ def _criar_tabela_pdf(
     linha_vazia = not linhas_normais
 
     if linha_vazia:
-        mensagem = mensagem_vazia or "Nenhum registro disponivel nesta secao."
+        mensagem = mensagem_vazia or "Nenhum registro disponível nesta seção."
         dados.append(
             [Paragraph(_pdf_texto(mensagem), estilos["vazio_tabela"])] +
             [Paragraph("", estilos["corpo"]) for _ in cabecalho[1:]]
@@ -758,12 +795,12 @@ def _criar_tabela_pdf(
 def _cards_resumo(estatistico: dict, estilos: dict[str, ParagraphStyle]) -> Table:
     metricas = [
         ("Casas", estatistico["domicilios"]),
-        ("Familias", estatistico["familias"]),
+        ("Famílias", estatistico["familias"]),
         ("Pessoas", estatistico["pacientes_ativos"]),
-        ("Fora de area", estatistico["fora_area"]),
+        ("Fora de área", estatistico["fora_area"]),
         ("Gestantes", estatistico["gestantes"]),
         ("Acamados", estatistico["acamados"]),
-        ("Criancas 0-12", estatistico["criancas_0_12"]),
+        ("Crianças 0-12", estatistico["criancas_0_12"]),
         ("Adolescentes", estatistico["adolescentes"]),
         ("Adultos", estatistico["adultos"]),
         ("Idosos", estatistico["idosos"]),
@@ -789,7 +826,7 @@ def _montar_story_relatorio_pdf(relatorio: dict, titulo: str) -> list:
         Paragraph(_pdf_texto(titulo), estilos["titulo_capa"]),
         Paragraph(
             _pdf_texto(
-                f"Competencia {relatorio.get('competencia', competencia_atual())} | "
+                f"Competência {relatorio.get('competencia', competencia_atual())} | "
                 f"Emitido em {datetime.now().strftime('%d/%m/%Y %H:%M')}"
             ),
             estilos["subtitulo"],
@@ -803,12 +840,12 @@ def _montar_story_relatorio_pdf(relatorio: dict, titulo: str) -> list:
     riscos = [
         [item["classificacao"].title(), item["total"]]
         for item in estatistico["riscos"]
-    ] or [["Sem estratificacao", 0]]
+    ] or [["Sem estratificação", 0]]
     story.extend(
         [
-            Paragraph("Distribuicao de Risco Familiar", estilos["secao"]),
+            Paragraph("Distribuição de Risco Familiar", estilos["secao"]),
             _criar_tabela_pdf(
-                ["Classificacao", "Total"],
+                ["Classificação", "Total"],
                 riscos,
                 estilos,
                 larguras=[11.8 * cm, 3.2 * cm],
@@ -832,10 +869,10 @@ def _montar_story_relatorio_pdf(relatorio: dict, titulo: str) -> list:
         [
             Paragraph("Panorama Territorial", estilos["secao"]),
             _criar_tabela_pdf(
-                ["Microarea", "Domicilio", "Familia", "Referencia", "Pessoas", "Risco"],
+                ["Microárea", "Domicílio", "Família", "Referência", "Pessoas", "Risco"],
                 territorial,
                 estilos,
-                larguras=[2.0 * cm, 2.3 * cm, 2.2 * cm, 5.8 * cm, 1.6 * cm, 3.3 * cm],
+                larguras=[2.0 * cm, 2.2 * cm, 2.2 * cm, 5.7 * cm, 1.9 * cm, 3.2 * cm],
                 colunas_centralizadas={0, 1, 2, 4},
                 mensagem_vazia="Nenhum registro territorial encontrado.",
             ),
@@ -848,14 +885,14 @@ def _montar_story_relatorio_pdf(relatorio: dict, titulo: str) -> list:
     ]
     story.extend(
         [
-            Paragraph("Pessoas Fora de Area", estilos["secao"]),
+            Paragraph("Pessoas Fora de Área", estilos["secao"]),
             _criar_tabela_pdf(
-                ["Nome", "CPF", "Domicilio", "Familia", "Microarea"],
+                ["Nome", "CPF", "Domicílio", "Família", "Microárea"],
                 fora_area,
                 estilos,
                 larguras=[6.3 * cm, 3.0 * cm, 2.4 * cm, 2.4 * cm, 2.9 * cm],
                 colunas_centralizadas={1, 2, 3, 4},
-                mensagem_vazia="Nenhuma pessoa fora de area cadastrada.",
+                mensagem_vazia="Nenhuma pessoa fora de área cadastrada.",
             ),
         ]
     )
@@ -875,20 +912,20 @@ def _montar_story_relatorio_pdf(relatorio: dict, titulo: str) -> list:
         [
             Paragraph("Idosos Acompanhados", estilos["secao"]),
             _criar_tabela_pdf(
-                ["Nome", "CPF", "Idade", "Domicilio", "Familia", "Microarea"],
+                ["Nome", "CPF", "Idade", "Domicílio", "Família", "Microárea"],
                 idosos,
                 estilos,
                 larguras=[5.0 * cm, 2.9 * cm, 1.4 * cm, 2.2 * cm, 2.1 * cm, 2.4 * cm],
                 colunas_centralizadas={1, 2, 3, 4, 5},
-                mensagem_vazia="Nenhum idoso acompanhado nesta competencia.",
+                mensagem_vazia="Nenhum idoso acompanhado nesta competência.",
             ),
         ]
     )
 
-    story.append(Paragraph("Condicoes Prioritarias", estilos["secao"]))
+    story.append(Paragraph("Condições Prioritárias", estilos["secao"]))
     story.append(
         _criar_tabela_pdf(
-            ["Condicao", "Total"],
+            ["Condição", "Total"],
             [[grupo["titulo"], grupo["total"]] for grupo in relatorio["condicoes"]],
             estilos,
             larguras=[12.5 * cm, 2.5 * cm],
@@ -901,7 +938,7 @@ def _montar_story_relatorio_pdf(relatorio: dict, titulo: str) -> list:
         story.append(Paragraph(f"{grupo['titulo']} ({grupo['total']})", estilos["microtitulo"]))
         story.append(
             _criar_tabela_pdf(
-                ["Nome", "CPF", "Domicilio", "Familia"],
+                ["Nome", "CPF", "Domicílio", "Família"],
                 [
                     [pessoa["nome"], _formatar_cpf(pessoa["cpf"]), pessoa["domicilio"], pessoa["familia"]]
                     for pessoa in grupo["pessoas"]
@@ -925,9 +962,9 @@ def _montar_story_relatorio_pdf(relatorio: dict, titulo: str) -> list:
     ]
     story.extend(
         [
-            Paragraph("Estratificacao Detalhada", estilos["secao"]),
+            Paragraph("Estratificação Detalhada", estilos["secao"]),
             _criar_tabela_pdf(
-                ["Risco", "Escore", "Domicilio", "Familia", "Referencia", "Resumo"],
+                ["Risco", "Escore", "Domicílio", "Família", "Referência", "Resumo"],
                 estratificacao or [["Sem registros", 0, "-", "-", "-", "-"]],
                 estilos,
                 larguras=[2.4 * cm, 1.4 * cm, 2.2 * cm, 2.1 * cm, 3.7 * cm, 4.2 * cm],
@@ -951,7 +988,7 @@ def _condicoes_ativas(condicao: dict) -> str:
     observacoes = str(condicao.get("observacoes") or "").strip()
     if observacoes:
         ativos.append(f"Obs: {observacoes}")
-    return ", ".join(ativos) if ativos else "Sem condicoes sinalizadas"
+    return ", ".join(ativos) if ativos else "Sem condições sinalizadas"
 
 
 def _receitas_resumo(receitas: list[dict]) -> str:
@@ -961,7 +998,7 @@ def _receitas_resumo(receitas: list[dict]) -> str:
     for receita in receitas[:4]:
         validade = _formatar_data_br(receita.get("data_validade", ""))
         medicamento = receita.get("medicamento") or "Medicamento"
-        dosagem = receita.get("dosagem") or "Dose nao informada"
+        dosagem = receita.get("dosagem") or "Dose não informada"
         itens.append(f"{medicamento} ({dosagem}) validade {validade}")
     if len(receitas) > 4:
         itens.append(f"+{len(receitas) - 4} receita(s)")
@@ -970,7 +1007,7 @@ def _receitas_resumo(receitas: list[dict]) -> str:
 
 def _resumo_domicilio(domicilio: dict) -> str:
     partes = [
-        domicilio.get("endereco") or "Endereco nao informado",
+        domicilio.get("endereco") or "Endereço não informado",
         str(domicilio.get("numero") or "S/N"),
     ]
     bairro = domicilio.get("bairro")
@@ -986,30 +1023,34 @@ def _story_microarea_executivo(dados: dict) -> list:
     pacientes = dados["pacientes"]
     estratificacao = dados["estratificacao"]
     story = [
-        Paragraph(_pdf_texto(f"Exportacao da Microarea {dados['microarea']}"), estilos["titulo_capa"]),
+        Paragraph(_pdf_texto(f"Exportação da Microárea {dados['microarea']}"), estilos["titulo_capa"]),
         Paragraph(
-            _pdf_texto(f"Relatorio executivo | Gerado em {_formatar_data_br(dados['gerado_em'])}"),
+            _pdf_texto(f"Relatório executivo | Gerado em {_formatar_data_br(dados['gerado_em'])}"),
             estilos["subtitulo"],
         ),
         Spacer(1, 0.3 * cm),
-        Paragraph("Painel da Microarea", estilos["secao"]),
+        Paragraph("Painel da Microárea", estilos["secao"]),
     ]
 
     cards = [
-        _pdf_card_metrica("Domicilios", len(domicilios), estilos),
-        _pdf_card_metrica("Familias", len(familias), estilos),
+        _pdf_card_metrica("Domicílios", len(domicilios), estilos),
+        _pdf_card_metrica("Famílias", len(familias), estilos),
         _pdf_card_metrica("Pacientes", len(pacientes), estilos),
         _pdf_card_metrica("Receitas", len(dados["receitas"]), estilos),
-        _pdf_card_metrica("Condicoes", len(dados["condicoes"]), estilos),
-        _pdf_card_metrica("Risco alto/maximo", sum(1 for item in estratificacao if "alto" in item["classificacao"].lower() or "max" in item["classificacao"].lower()), estilos),
+        _pdf_card_metrica("Condições", len(dados["condicoes"]), estilos),
+        _pdf_card_metrica(
+            "Risco alto/máximo",
+            sum(1 for item in estratificacao if "alto" in item["classificacao"].lower() or "max" in item["classificacao"].lower()),
+            estilos,
+        ),
     ]
     story.append(Table([cards[:3], cards[3:]], colWidths=[5.5 * cm, 5.5 * cm, 5.5 * cm], hAlign="LEFT"))
 
     story.extend(
         [
-            Paragraph("Domicilios Cadastrados", estilos["secao"]),
+            Paragraph("Domicílios Cadastrados", estilos["secao"]),
             _criar_tabela_pdf(
-                ["Domicilio", "Endereco", "Familias", "Pacientes"],
+                ["Domicílio", "Endereço", "Famílias", "Pacientes"],
                 [
                     [
                         domicilio["identificacao"],
@@ -1018,13 +1059,14 @@ def _story_microarea_executivo(dados: dict) -> list:
                         sum(1 for paciente in pacientes if paciente["domicilio_identificacao"] == domicilio["identificacao"]),
                     ]
                     for domicilio in domicilios
-                ] or [["-", "Nenhum domicilio", 0, 0]],
+                ] or [["-", "Nenhum domicílio", 0, 0]],
                 estilos,
-                larguras=[2.8 * cm, 8.0 * cm, 2.2 * cm, 2.2 * cm],
+                larguras=[2.5 * cm, 8.2 * cm, 2.2 * cm, 2.2 * cm],
+                colunas_centralizadas={0, 2, 3},
             ),
-            Paragraph("Estratificacao Familiar", estilos["secao"]),
+            Paragraph("Estratificação Familiar", estilos["secao"]),
             _criar_tabela_pdf(
-                ["Familia", "Domicilio", "Referencia", "Risco", "Escore", "Resumo"],
+                ["Família", "Domicílio", "Referência", "Risco", "Escore", "Resumo"],
                 [
                     [
                         item["familia"],
@@ -1037,7 +1079,8 @@ def _story_microarea_executivo(dados: dict) -> list:
                     for item in estratificacao
                 ] or [["-", "-", "-", "Sem registros", 0, "-"]],
                 estilos,
-                larguras=[2.1 * cm, 2.3 * cm, 3.8 * cm, 2.5 * cm, 1.3 * cm, 4.2 * cm],
+                larguras=[1.9 * cm, 2.1 * cm, 3.8 * cm, 2.5 * cm, 1.7 * cm, 4.0 * cm],
+                colunas_centralizadas={0, 1, 4},
             ),
         ]
     )
@@ -1047,10 +1090,10 @@ def _story_microarea_executivo(dados: dict) -> list:
 def _story_microarea_cadastro(dados: dict) -> list:
     estilos = _pdf_estilos()
     story = [
-        Paragraph(_pdf_texto(f"Cadastro Completo da Microarea {dados['microarea']}"), estilos["titulo_capa"]),
+        Paragraph(_pdf_texto(f"Cadastro Completo da Microárea {dados['microarea']}"), estilos["titulo_capa"]),
         Paragraph(
             _pdf_texto(
-                f"Caderno operacional com domicilios, familias, pacientes, condicoes e receitas | "
+                f"Caderno operacional com domicílios, famílias, pacientes, condições e receitas | "
                 f"Gerado em {_formatar_data_br(dados['gerado_em'])}"
             ),
             estilos["subtitulo"],
@@ -1071,14 +1114,15 @@ def _story_microarea_cadastro(dados: dict) -> list:
             _criar_tabela_pdf(
                 ["Indicador", "Total"],
                 [
-                    ["Domicilios", len(dados["domicilios"])],
-                    ["Familias", len(dados["familias"])],
+                    ["Domicílios", len(dados["domicilios"])],
+                    ["Famílias", len(dados["familias"])],
                     ["Pacientes", len(dados["pacientes"])],
-                    ["Registros de condicoes", len(dados["condicoes"])],
+                    ["Registros de condições", len(dados["condicoes"])],
                     ["Receitas", len(dados["receitas"])],
                 ],
                 estilos,
                 larguras=[12 * cm, 3 * cm],
+                colunas_centralizadas={1},
             ),
         ]
     )
@@ -1091,25 +1135,26 @@ def _story_microarea_cadastro(dados: dict) -> list:
         total_pessoas = sum(len(pacientes_por_familia.get(familia["id"], [])) for familia in familias)
         story.extend(
             [
-                Paragraph(f"Domicilio {domicilio['identificacao']}", estilos["secao"]),
+                Paragraph(f"Domicílio {domicilio['identificacao']}", estilos["secao"]),
                 Paragraph(_pdf_texto(_resumo_domicilio(domicilio)), estilos["corpo"]),
                 _criar_tabela_pdf(
-                    ["Microarea", "Comodos", "Agua", "Energia", "Area de risco", "Vulnerabilidade"],
+                    ["Microárea", "Cômodos", "Água", "Energia", "Área de risco", "Vulnerabilidade"],
                     [[
                         domicilio.get("microarea") or "-",
                         domicilio.get("comodos") or 0,
-                        "Sim" if domicilio.get("agua_tratada") else "Nao",
-                        "Sim" if domicilio.get("energia_eletrica") else "Nao",
-                        "Sim" if domicilio.get("area_risco") else "Nao",
-                        "Sim" if domicilio.get("vulnerabilidade_social") else "Nao",
+                        "Sim" if domicilio.get("agua_tratada") else "Não",
+                        "Sim" if domicilio.get("energia_eletrica") else "Não",
+                        "Sim" if domicilio.get("area_risco") else "Não",
+                        "Sim" if domicilio.get("vulnerabilidade_social") else "Não",
                     ]],
                     estilos,
-                    larguras=[2.5 * cm, 1.8 * cm, 2.0 * cm, 2.0 * cm, 3.0 * cm, 3.7 * cm],
+                    larguras=[2.3 * cm, 2.1 * cm, 1.8 * cm, 1.8 * cm, 3.0 * cm, 4.0 * cm],
+                    colunas_centralizadas={0, 1, 2, 3, 4, 5},
                 ),
                 Paragraph(
                     _pdf_texto(
-                        f"Familias vinculadas: {len(familias)} | Pessoas cadastradas: {total_pessoas} | "
-                        f"Observacoes: {domicilio.get('observacoes') or 'Sem observacoes'}"
+                        f"Famílias vinculadas: {len(familias)} | Pessoas cadastradas: {total_pessoas} | "
+                        f"Observações: {domicilio.get('observacoes') or 'Sem observações'}"
                     ),
                     estilos["corpo"],
                 ),
@@ -1117,7 +1162,7 @@ def _story_microarea_cadastro(dados: dict) -> list:
         )
 
         if not familias:
-            story.append(Paragraph("Nenhuma familia vinculada a este domicilio.", estilos["corpo"]))
+            story.append(Paragraph("Nenhuma família vinculada a este domicílio.", estilos["corpo"]))
             continue
 
         for familia in familias:
@@ -1125,25 +1170,26 @@ def _story_microarea_cadastro(dados: dict) -> list:
             risco = risco_por_familia.get(familia["codigo"], {})
             story.extend(
                 [
-                    Paragraph(f"Familia {familia['codigo']}", estilos["subsecao"]),
+                    Paragraph(f"Família {familia['codigo']}", estilos["subsecao"]),
                     _criar_tabela_pdf(
-                        ["Referencia", "Renda", "Programa social", "Risco", "Escore"],
+                        ["Referência", "Renda", "Prog. social", "Risco", "Escore"],
                         [[
                             familia.get("nome_referencia") or "-",
                             familia.get("renda_mensal") or 0,
-                            "Sim" if familia.get("beneficiaria_programa_social") else "Nao",
-                            risco.get("classificacao") or "Sem estratificacao",
+                            "Sim" if familia.get("beneficiaria_programa_social") else "Não",
+                            risco.get("classificacao") or "Sem estratificação",
                             risco.get("escore") or 0,
                         ]],
                         estilos,
-                        larguras=[5.0 * cm, 2.0 * cm, 2.8 * cm, 3.1 * cm, 1.5 * cm],
+                        larguras=[5.1 * cm, 2.0 * cm, 2.5 * cm, 3.0 * cm, 1.8 * cm],
+                        colunas_centralizadas={1, 2, 4},
                     ),
-                    Paragraph(_pdf_texto(f"Resumo do risco: {risco.get('resumo') or 'Sem historico'}"), estilos["corpo"]),
+                    Paragraph(_pdf_texto(f"Resumo do risco: {risco.get('resumo') or 'Sem histórico'}"), estilos["corpo"]),
                 ]
             )
 
             if not pacientes:
-                story.append(Paragraph("Nenhum paciente ativo nesta familia.", estilos["corpo"]))
+                story.append(Paragraph("Nenhum paciente ativo nesta família.", estilos["corpo"]))
                 continue
 
             for paciente in pacientes:
@@ -1153,7 +1199,7 @@ def _story_microarea_cadastro(dados: dict) -> list:
                     [
                         Paragraph(f"Paciente {paciente['nome']}", estilos["microtitulo"]),
                         _criar_tabela_pdf(
-                            ["CPF", "Nascimento", "Sexo", "Telefone", "CNS", "Nome da mae"],
+                            ["CPF", "Nascimento", "Sexo", "Telefone", "CNS", "Nome da mãe"],
                             [[
                                 _formatar_cpf(paciente.get("cpf", "")),
                                 _formatar_data_br(paciente.get("data_nascimento", "")),
@@ -1163,26 +1209,28 @@ def _story_microarea_cadastro(dados: dict) -> list:
                                 paciente.get("nome_mae") or "-",
                             ]],
                             estilos,
-                            larguras=[2.7 * cm, 2.2 * cm, 1.2 * cm, 2.8 * cm, 3.0 * cm, 4.6 * cm],
+                            larguras=[2.8 * cm, 2.4 * cm, 1.3 * cm, 2.7 * cm, 2.7 * cm, 4.3 * cm],
+                            colunas_centralizadas={0, 1, 2, 3, 4},
                         ),
                         _criar_tabela_pdf(
-                            ["Nome social", "Ocupacao", "Peso", "Altura", "Gestante", "Acamado"],
+                            ["Nome social", "Ocupação", "Peso", "Altura", "Gestante", "Acamado"],
                             [[
                                 paciente.get("nome_social") or "-",
                                 paciente.get("ocupacao") or "-",
                                 paciente.get("peso_kg") or "-",
                                 paciente.get("altura_cm") or "-",
-                                "Sim" if paciente.get("gestante") else "Nao",
-                                "Sim" if paciente.get("acamado") else "Nao",
+                                "Sim" if paciente.get("gestante") else "Não",
+                                "Sim" if paciente.get("acamado") else "Não",
                             ]],
                             estilos,
-                            larguras=[3.5 * cm, 3.8 * cm, 1.7 * cm, 1.7 * cm, 2.2 * cm, 2.2 * cm],
+                            larguras=[3.5 * cm, 3.7 * cm, 1.6 * cm, 1.6 * cm, 2.3 * cm, 2.3 * cm],
+                            colunas_centralizadas={2, 3, 4, 5},
                         ),
-                        Paragraph(_pdf_texto(f"Condicoes: {_condicoes_ativas(condicao)}"), estilos["corpo"]),
+                        Paragraph(_pdf_texto(f"Condições: {_condicoes_ativas(condicao)}"), estilos["corpo"]),
                         Paragraph(_pdf_texto(f"Receitas: {_receitas_resumo(receitas)}"), estilos["corpo"]),
                         Paragraph(
                             _pdf_texto(
-                                f"Observacoes do paciente: {paciente.get('observacoes') or 'Sem observacoes registradas'}"
+                                f"Observações do paciente: {paciente.get('observacoes') or 'Sem observações registradas'}"
                             ),
                             estilos["corpo"],
                         ),
@@ -1264,7 +1312,7 @@ def exportar_relatorio_pdf(nome_arquivo: str = "relatorio_territorial.pdf", rela
     """Exporta um relatorio em PDF com layout profissional."""
     destino = RELATORIOS_PDF_DIR / nome_arquivo
     dados = relatorio or relatorio_geral()
-    story = _montar_story_relatorio_pdf(dados, "Relatorio Territorial")
+    story = _montar_story_relatorio_pdf(dados, "Relatório Territorial")
     return _gerar_pdf(destino, story)
 
 
@@ -1360,6 +1408,7 @@ def exportar_microarea(microarea: str) -> dict:
     """Exporta todos os dados de uma microarea em JSON, MD e dois PDFs."""
     _garantir_diretorios()
     dados = relatorio_microarea(microarea)
+    dados_exportacao = _normalizar_exportacao(dados)
     slug = microarea.strip().replace("/", "-").replace(" ", "_")
     base_dir = EXPORTACOES_MICROAREA_DIR / slug
     base_dir.mkdir(parents=True, exist_ok=True)
@@ -1370,39 +1419,39 @@ def exportar_microarea(microarea: str) -> dict:
     pdf_executivo_path = base_dir / f"microarea_{slug}_executivo.pdf"
     pdf_cadastro_path = base_dir / f"microarea_{slug}_cadastro.pdf"
 
-    json_path.write_text(json.dumps(dados, ensure_ascii=False, indent=2), encoding="utf-8")
+    json_path.write_text(json.dumps(dados_exportacao, ensure_ascii=False, indent=2), encoding="utf-8")
 
     md_lines = [
-        f"# Exportação da Microárea {dados['microarea']}",
+        f"# Exportação da Microárea {dados_exportacao['microarea']}",
         "",
-        f"Gerado em: {dados['gerado_em']}",
+        f"Gerado em: {_formatar_data_br(dados_exportacao['gerado_em'])}",
         "",
-        f"- Domicílios: {len(dados['domicilios'])}",
-        f"- Famílias: {len(dados['familias'])}",
-        f"- Pacientes: {len(dados['pacientes'])}",
-        f"- Registros de condições: {len(dados['condicoes'])}",
-        f"- Receitas: {len(dados['receitas'])}",
+        f"- Domicílios: {len(dados_exportacao['domicilios'])}",
+        f"- Famílias: {len(dados_exportacao['familias'])}",
+        f"- Pacientes: {len(dados_exportacao['pacientes'])}",
+        f"- Registros de condições: {len(dados_exportacao['condicoes'])}",
+        f"- Receitas: {len(dados_exportacao['receitas'])}",
         "",
         "## Domicílios",
     ]
-    for item in dados["domicilios"]:
+    for item in dados_exportacao["domicilios"]:
         md_lines.append(
-            f"- {item['identificacao']} | {item['endereco']}, {item.get('numero') or 'S/N'} | bairro {item.get('bairro') or '-'}"
+            f"- {item['identificacao']} | {item['endereco']}, {item.get('numero') or 'S/N'} | Bairro {item.get('bairro') or '-'}"
         )
     md_lines.extend(["", "## Famílias"])
-    for item in dados["familias"]:
+    for item in dados_exportacao["familias"]:
         md_lines.append(
-            f"- {item['codigo']} | referência {item['nome_referencia']} | domicílio {item['domicilio_identificacao']}"
+            f"- {item['codigo']} | Referência {item['nome_referencia']} | Domicílio {item['domicilio_identificacao']}"
         )
     md_lines.extend(["", "## Pacientes"])
-    for item in dados["pacientes"]:
+    for item in dados_exportacao["pacientes"]:
         md_lines.append(
-            f"- {item['nome']} | CPF {_formatar_cpf(item['cpf'])} | família {item['familia_codigo']} | domicílio {item['domicilio_identificacao']}"
+            f"- {item['nome']} | CPF {_formatar_cpf(item['cpf'])} | Família {item['familia_codigo']} | Domicílio {item['domicilio_identificacao']}"
         )
     md_lines.extend(["", "## Estratificação"])
-    for item in dados["estratificacao"]:
+    for item in dados_exportacao["estratificacao"]:
         md_lines.append(
-            f"- {item['familia']} | casa {item['domicilio']} | {item['classificacao']} | escore {item['escore']}"
+            f"- {item['familia']} | Casa {item['domicilio']} | {item['classificacao']} | Escore {item['escore']}"
         )
 
     markdown_texto = "\n".join(md_lines)

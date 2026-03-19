@@ -270,6 +270,34 @@ def _garantir_colunas(conexao: sqlite3.Connection, tabela: str, colunas: dict[st
             conexao.execute(f"ALTER TABLE {tabela} ADD COLUMN {nome} {definicao}")
 
 
+def _normalizar_textos_historicos(conexao: sqlite3.Connection) -> None:
+    """Padroniza textos antigos para manter relatorios consistentes."""
+    conexao.execute(
+        """
+        UPDATE risco_familiar
+        SET classificacao = CASE classificacao
+            WHEN 'R3 - maximo' THEN 'R3 - máximo'
+            WHEN 'R2 - medio' THEN 'R2 - médio'
+            ELSE classificacao
+        END,
+        resumo = REPLACE(
+            REPLACE(
+                REPLACE(
+                    REPLACE(resumo, 'baixas condicoes de saneamento', 'baixas condições de saneamento'),
+                    'domicilio em area de risco', 'domicílio em área de risco'
+                ),
+                'vulnerabilidade social do domicilio', 'vulnerabilidade social do domicílio'
+            ),
+            'deficiencia:', 'deficiência:'
+        )
+        WHERE classificacao IN ('R3 - maximo', 'R2 - medio')
+           OR resumo LIKE '%condicoes%'
+           OR resumo LIKE '%domicilio%'
+           OR resumo LIKE '%deficiencia:%'
+        """
+    )
+
+
 def inicializar_banco() -> None:
     """Cria as tabelas essenciais e executa migracoes incrementais."""
     with obter_conexao() as conexao:
@@ -277,3 +305,4 @@ def inicializar_banco() -> None:
         for tabela, colunas in MIGRACOES_COLUNAS.items():
             _garantir_colunas(conexao, tabela, colunas)
         _tornar_familia_id_opcional(conexao)
+        _normalizar_textos_historicos(conexao)
